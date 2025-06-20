@@ -17,7 +17,7 @@ ST-SBSCAN法のアルゴリズム[fn:1]は引用文献から引用し、 ~stdbsc
 githubからインストールを実行してください。
 
 #+begin_src R 
-  devtools::install_github("IEOHS/ST-DBSCAN.R.git")
+  devtools::install_github("IEOHS/ST-DBSCAN.R")
 #+end_src
 
 
