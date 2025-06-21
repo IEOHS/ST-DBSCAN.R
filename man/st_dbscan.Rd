@@ -7,7 +7,7 @@
 st_dbscan(
   nb = NULL,
   vals = list(list(D = NULL, delta_eps = 5)),
-  type = c("grid", "random"),
+  type = c("grid", "default"),
   minPts = 10
 )
 }
@@ -18,7 +18,7 @@ st_dbscan(
 
 \item{type}{\itemize{
 \item "grid": For Grid data. Adjust nb size before calc.
-\item "random": For normal(random point) data. not Adjustment.
+\item "default": For normal(random point) data. not Adjustment.
 }}
 
 \item{minPts}{minimum number of points}

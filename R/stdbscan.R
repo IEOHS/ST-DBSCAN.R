@@ -47,7 +47,7 @@ NULL
 #' * "random": 地震発生源のような、時間と空間上でランダムなデータを利用する場合に指定します。
 #' @param dbscantype クラスターの判定の際、netCDF形式で配布されている気象データのようなグリッドデータでは、常に一定数の隣接点が存在します。
 #' このような場合、ST-DBSCANのもともとの計算アルゴリズムでは必ずクラスターが生成されるため、意図しない計算結果となることが想定されます。
-#' `dbscantype` 引数では、"random" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が `minPts` 以上であればクラスターと認識する計算が実行されます。
+#' `dbscantype` 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が `minPts` 以上であればクラスターと認識する計算が実行されます。
 #' @return
 #' * cluster: valsに指定したデータ数と対応するクラスタリングの結果ラベルが含まれています。
 #' * eps1: `eps1` 引数の値
@@ -75,7 +75,7 @@ NULL
 #'                   eps1 = 144, eps2 = 3600 * 6, minPts = 6,
 #'                   vals = list(list(D = D,
 #'                                    delta_eps = 20)),
-#'                   metric = "geo", neighbortype = "random", dbscantype = "random")
+#'                   metric = "geo", neighbortype = "random", dbscantype = "default")
 #' 
 #' ## for spatial
 #' D <- abs(runif(nrow(geo) * length(t))) * 100
@@ -92,7 +92,7 @@ stdbscan <- function(x,
                                       delta_eps = double())),
                      metric = c("euclidean", "geo"),
                      neighbortype = c("spatial", "random"),
-                     dbscantype = c("grid", "random")) {
+                     dbscantype = c("grid", "default")) {
 
   stopifnot(!is.null(x))
   stopifnot(length(eps1) > 0)
@@ -224,11 +224,11 @@ stdbscan <- function(x,
 #' @param vals as delta_eps list
 #' @param type
 #' * "grid": For Grid data. Adjust nb size before calc.
-#' * "random": For normal(random point) data. not Adjustment.
+#' * "default": For normal(random point) data. not Adjustment.
 st_dbscan <- function(nb = NULL,
                       vals = list(list(D = NULL, ## val list
                                        delta_eps = 5)),
-                      type = c("grid", "random"),
+                      type = c("grid", "default"),
                       minPts = 10) {
   type <- match.arg(type)
   stopifnot(is.list(vals))
@@ -253,7 +253,7 @@ st_dbscan <- function(nb = NULL,
                      m$D[i]
                    }),
                    label = NULL, mode = "all")
-      } else if (type == "random") {
+      } else if (type == "default") {
         nb[[i]]
       }
 
@@ -375,8 +375,8 @@ rneighbors_one <- function(nb, x, deps, mean_val,
 #' * "geo": calc for geographics. 
 #' * "euclidean": calc for euclidean area.
 #' @param neighbortype
-#' * "Spatial": For Grid data. Adjust nb size before calc.
-#' * "Random": For normal(random point) data. not Adjustment.
+#' * "spatial": For Grid data. Adjust nb size before calc.
+#' * "random": For normal(random point) data. not Adjustment.
 #' 
 stnb <- function(x = double(),
                  y = double(),

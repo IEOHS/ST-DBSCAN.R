@@ -35,8 +35,8 @@ stnb(
 }}
 
 \item{neighbortype}{\itemize{
-\item "Spatial": For Grid data. Adjust nb size before calc.
-\item "Random": For normal(random point) data. not Adjustment.
+\item "spatial": For Grid data. Adjust nb size before calc.
+\item "random": For normal(random point) data. not Adjustment.
 }}
 }
 \description{

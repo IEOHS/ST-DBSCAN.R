@@ -40,7 +40,7 @@ githubからインストールを実行してください。
                     eps1 = 144, eps2 = 3600 * 6, minPts = 6,
                     vals = list(list(D = D,
                                      delta_eps = 20)),
-                    metric = "geo", neighbortype = "random", dbscantype = "random")
+                    metric = "geo", neighbortype = "random", dbscantype = "default")
   print(clust)
 #+end_src
 
@@ -113,7 +113,7 @@ D (Δeps):
 
 ~stdbscan~ 関数の結果オブジェクトを ~plot~ すると、クラスターラベルで色分けされた結果を見ることができます。
 #+name: code:plot-stdbscan
-#+begin_src R :results file graphics :file "./inst/plot-stdbscan.png" :width 800 :height 800 :exports results :res 120
+#+begin_src R :results file graphics :file "./inst/plot-stdbscan.png" :width 800 :height 800 :exports both :res 120
 plot(clust)
 #+end_src
 
@@ -121,6 +121,77 @@ plot(clust)
 #+attr_html: :width 500px
 #+RESULTS: code:plot-stdbscan
 [[file:./inst/plot-stdbscan.png]]
+
+
+*** _quakes_ data clustering
+
+Rの *quakes* データセットを使ったST-DBSCANクラスタリングをテストします。
+条件として、地震の発生深さ (depth) とマグニチュード (mag) を指定しています。
+
+#+begin_src R
+  library(stdbscan)
+  quakes_data <- sf::st_as_sf(quakes, coords = c("long", "lat"), crs = 4326)
+  clust <- stdbscan(x = sf::st_geometry(quakes_data),
+                    time = rep(1, nrow(quakes_data)),
+                    eps1 = 100, eps2 = 3600 * 6, minPts = 6,
+                    vals = list(list(D = quakes$depth,
+                                     delta_eps = 150),
+                                list(D = quakes$mag,
+                                     delta_eps = 2)),
+                    metric = "geo", neighbortype = "random", dbscantype = "default")
+  print(clust)
+#+end_src
+
+#+RESULTS:
+#+begin_src R
+===== Start ST-DBSCAN method =====
+
+1. Calculation Neighbor List
+
+2. Calculation Cluster
+
+Start Clustering:  Sun Jun 22 05:49:01 2025
+	Create Cluster: 1
+	Create Cluster: 2
+	Create Cluster: 3
+	Create Cluster: 4
+	Create Cluster: 5
+	Create Cluster: 6
+	Create Cluster: 7
+	Create Cluster: 8
+	Create Cluster: 9
+	Create Cluster: 10
+	Create Cluster: 11
+	Create Cluster: 12
+	Create Cluster: 13
+	Create Cluster: 14
+	Create Cluster: 15
+	Create Cluster: 16
+
+Sun Jun 22 05:49:02 2025  Completed.
+
+Completed.
+ST-DBSCAN clustering for 1000 objects, 1 time length.
+Parameters: eps1 = 100, eps2 = 21600, minPts = 6
+Using geo distances, neighbor's metric = random, ST-DBSCAN type = default
+The clustering contains 16 cluster(s) and 28 noise points.
+D (Δeps): 
+   Obs_1 (150), 
+   Obs_2 (2)
+#+end_src
+
+#+name: code:quakes-plot-stdbscan
+#+begin_src R :results file graphics :file "./inst/quakes-plot-stdbscan.png" :width 1500 :height 400 :exports both :res 120
+  with(clust$results, {
+    merge(geo, value, by = "id") |> plot()
+  })
+#+end_src
+
+#+name: fig:quakes-plot-stdbscan
+#+attr_html: :width 1000px
+#+RESULTS: code:quakes-plot-stdbscan
+[[file:./inst/quakes-plot-stdbscan.png]]
+
 
 ** Hierarchical ST-DBSCAN
 
@@ -170,7 +241,7 @@ Can use the `cutclust` function to split it into `k` clusters
 ~hstdbscan~ 関数の結果には ~hclust~ によるツリーが含まれており、以下の通り図に出力することができます。
 
 #+name: code:plot-hstdbscan
-#+begin_src R :results file graphics :file "./inst/plot-hstdbscan.png" :width 800 :height 800 :exports results :res 120
+#+begin_src R :results file graphics :file "./inst/plot-hstdbscan.png" :width 800 :height 800 :exports both :res 120
   plot(clust)
   rect_hstdbscan(clust, k = 4)
 #+end_src
@@ -188,7 +259,7 @@ Can use the `cutclust` function to split it into `k` clusters
 #+begin_src R
   cutclust(clust, k = 4)
 #+end_src
-
+n
 #+RESULTS:
 #+begin_src R
 Simple feature collection with 121 features and 2 fields
