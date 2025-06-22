@@ -5,13 +5,13 @@ ST-DBSCAN (density-based clustering applicable Spatio-Temporal data.) [fn:1]は�
 
 * ST-DBSCANのアルゴリズム
 
-ST-SBSCAN法のアルゴリズム[fn:1]は引用文献から引用し、 ~stdbscan~ 関数を定義ました。
+ST-SBSCAN法のアルゴリズム[fn:1]は引用文献から引用し、 ~stdbscan~ 関数を定義しました。
 また、このパッケージではグリッドデータにも対応できるよう、アルゴリズムを一部修正しています。
 具体的には、クラスター認定されるためには地点 $X$ の隣接点 $Y$ の数が MinPts以上であることが条件 ( $|Y| \geqq MinPts$ ) となっていますが、グリッドデータは常に一定数の隣接点を持つことからこの条件では最適な隣接点を求めることができないと思われます。
 そこで、 地点 $X$ と隣接点 $Y$ の値 $D$ の差が $\Delta \epsilon$ 以上となる条件 $Y_\epsilon = (X - Y) \geqq \Delta \epsilon$ の数が MinPts 以上となる条件 ( $|Y_\epsilon| \geqq minPts$ )に変更してクラスター判定を行うよう修正しました。
 
 更に、ST-DBSCAN法の結果に階層的クラスタリングを適用する、階層的ST-DBSCAN (Hierarchical ST-DBSCAN) を実行する ~hstdbscan~ 関数を定義しました。
-
+この ~hstdbscan~ は ~neighbortype = "spatial"~ であるデータに対して、効果的に階層的クラスタリングを実施できます。(~neighbortype = "random"~ では実施しても意味がありません。)
 
 * install package
 githubからインストールを実行してください。
@@ -259,7 +259,7 @@ Can use the `cutclust` function to split it into `k` clusters
 #+begin_src R
   cutclust(clust, k = 4)
 #+end_src
-n
+
 #+RESULTS:
 #+begin_src R
 Simple feature collection with 121 features and 2 fields
