@@ -71,7 +71,7 @@ D (Δeps):
    Obs_1 (20)
 #+end_src
 
-*** for random data
+*** for spatial data
 気象観測データ、シミュレーション等の格子モデルの結果など、位置情報が時間で変化しないデータを利用する場合、以下のように実行します。
 
 #+begin_src R
@@ -123,7 +123,7 @@ plot(clust)
 [[file:./inst/plot-stdbscan.png]]
 
 
-*** _quakes_ data clustering
+*** clustering for `quakes` data
 
 Rの *quakes* データセットを使ったST-DBSCANクラスタリングをテストします。
 条件として、地震の発生深さ (depth) とマグニチュード (mag) を指定しています。
