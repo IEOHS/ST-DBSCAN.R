@@ -6,6 +6,16 @@
 NULL
 
 
+#' plot stclust data
+#'
+#' @export
+#' @param x `stclust` 関数の結果オブジェクトを指定します。
+#' @param ... `plot` 関数で指定できる引数を指定します。
+plot.stclust <- function(x, ...) {
+  plot(x$geo, ...)
+}
+
+
 #' plot cluster dendrogram
 #'
 #' @export

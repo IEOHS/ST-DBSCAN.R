@@ -1,6 +1,6 @@
 Package: stdbscan
 Title: Spatio Temporal Density Based Scanning Clustering. (One Line, Title Case)
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     person("Shoei", "Furusawa", , "ieohs-furu30@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
@@ -8,8 +8,9 @@ Description: What the package does (one paragraph).
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.2
 Imports: 
     cluster,
+    dplyr,
     sf,
     spdep

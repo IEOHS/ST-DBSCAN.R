@@ -26,7 +26,7 @@ NULL
 #' geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
 #' 
 #' D <- abs(runif(nrow(geo) * length(t))) * 100
-#' clust <- stdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
+#' clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
 #'                   vals = list(list(D = D,
 #'                                    delta_eps = 20)),
 #'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
@@ -72,7 +72,7 @@ hstdbscan <- function(x,
 #' geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
 #' 
 #' D <- abs(runif(nrow(geo) * length(t))) * 100
-#' clust <- stdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
+#' clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
 #'                   vals = list(list(D = D,
 #'                                    delta_eps = 20)),
 #'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")

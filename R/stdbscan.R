@@ -119,7 +119,7 @@ stdbscan <- function(x,
     stnb(x = x[, "x"], y = x[, "y"], time = time, eps1 = eps1, eps2 = eps2,
          method = metric, neighbortype = neighbortype)
   } else if (any(class(x) == "data.frame")) {
-    stnb(x = x$x, y = y$y, time = time, eps1 = eps1, eps2 = eps2,
+    stnb(x = x$x, y = x$y, time = time, eps1 = eps1, eps2 = eps2,
          method = metric, neighbortype = neighbortype)
   } else {
     stnb(x = x, time = time, eps1 = eps1, eps2 = eps2,

@@ -26,7 +26,7 @@ t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
 geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
 
 D <- abs(runif(nrow(geo) * length(t))) * 100
-clust <- stdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
+clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
                   vals = list(list(D = D,
                                    delta_eps = 20)),
                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")

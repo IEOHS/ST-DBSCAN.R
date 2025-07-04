@@ -5,6 +5,33 @@
 ## usethis namespace: end
 NULL
 
+#' print stclust class
+#'
+#' @export
+#' @param x "stclust" 関数の結果オブジェクトを指定します。
+#' @param ... `print` 関数で使用できる引数を指定します。
+print.stclust <- function(x, ...) {
+  message("Display of time-series similarity and spatial agglomeration\n  assessment in clustering results")
+  message("Check-mode: ", x$check_mode)
+  message("\nResults: ")
+  print(x$results)
+  message("---\nSignif. codes: ")
+  message("  Spatials (sp_check): \n\t",
+          paste(c("'***'", "'**' ", "'*'  "),
+                x$check_conditions$sp,
+                collapse = "\n\t"),
+          "\n\t'.'   others.")
+  message("  Time-Series (ts_check): \n\t",
+          paste(c("'***'", "'**' ", "'*'  "),
+                x$check_conditions$ts,
+                collapse = "\n\t"),
+          "\n\t'.'   others.")
+  
+  message("\nGeospatial data (sf-class): \n")
+  print(x$geo)
+}
+
+
 #' print stdbscan class
 #'
 #' @export
