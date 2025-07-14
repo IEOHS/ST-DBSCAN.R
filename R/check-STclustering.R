@@ -23,9 +23,9 @@ NULL
 #' `upper`, `middle`, `lower` の3段階の設定ができます。
 #' @param sp `spdep::joincount.mc` 及び `spdep::joincount.multi` 関数で計算された結果について、z値 (z_value) 及び調整済みp値 (adj_p_value) の基準を設定します。
 #' `upper`, `middle`, `lower` の3段階の設定ができます。
-checkCond <- function(ts = list(upper = "rsq >= 0.7 & 6 >= rmse",
-                                middle = "0.7 > rsq & rsq >= 0.4 & 9 >= rmse",
-                                lower = "0.4 > rsq & rsq > 0.2 & 12 >= rmse"),
+checkCond <- function(ts = list(upper = "rsq >= 0.8 & 6 >= rmse",
+                                middle = "rsq >= 0.6 & 9 >= rmse",
+                                lower = "rsq >= 0.4 & 12 >= rmse"),
                       sp = list(upper = "z_value > 0 & 0.01 >= adj_p_value",
                                 middle = "z_value > 0 & 0.05 >= adj_p_value",
                                 lower = "0.05 >= adj_p_value")) {
