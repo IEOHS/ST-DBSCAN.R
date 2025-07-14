@@ -26,9 +26,9 @@ NULL
 checkCond <- function(ts = list(upper = "rsq >= 0.8 & 6 >= rmse",
                                 middle = "rsq >= 0.6 & 9 >= rmse",
                                 lower = "rsq >= 0.4 & 12 >= rmse"),
-                      sp = list(upper = "z_value > 0 & 0.01 >= adj_p_value",
-                                middle = "z_value > 0 & 0.05 >= adj_p_value",
-                                lower = "0.05 >= adj_p_value")) {
+                      sp = list(upper = "z_value > 0 & 0.001 >= adj_p_value",
+                                middle = "z_value > 0 & 0.01 >= adj_p_value",
+                                lower = "z_value > 0 & 0.05 >= adj_p_value")) {
   list(ts = ts, sp = sp)
 }
 
