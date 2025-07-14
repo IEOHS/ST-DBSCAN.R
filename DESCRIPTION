@@ -1,6 +1,6 @@
 Package: stdbscan
 Title: Spatio Temporal Density Based Scanning Clustering. (One Line, Title Case)
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: 
     person("Shoei", "Furusawa", , "ieohs-furu30@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
