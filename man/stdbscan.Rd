@@ -13,7 +13,8 @@ stdbscan(
   vals = list(list(D = double(), delta_eps = double())),
   metric = c("euclidean", "geo"),
   neighbortype = c("spatial", "random"),
-  dbscantype = c("grid", "default")
+  dbscantype = c("grid", "default"),
+  FUN = mean
 )
 }
 \arguments{
@@ -51,6 +52,8 @@ list(list(D = vector(), delta_eps = double()), list(D = vector(), delta_eps = do
 \item{dbscantype}{クラスターの判定の際、netCDF形式で配布されている気象データのようなグリッドデータでは、常に一定数の隣接点が存在します。
 このような場合、ST-DBSCANのもともとの計算アルゴリズムでは必ずクラスターが生成されるため、意図しない計算結果となることが想定されます。
 \code{dbscantype} 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が \code{minPts} 以上であればクラスターと認識する計算が実行されます。}
+
+\item{FUN}{集計用の計算関数を指定します。}
 }
 \value{
 \itemize{

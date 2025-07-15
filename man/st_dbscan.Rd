@@ -8,7 +8,8 @@ st_dbscan(
   nb = NULL,
   vals = list(list(D = NULL, delta_eps = 5)),
   type = c("grid", "default"),
-  minPts = 10
+  minPts = 10,
+  FUN = mean
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ st_dbscan(
 }}
 
 \item{minPts}{minimum number of points}
+
+\item{FUN}{集計用の計算関数を指定します。}
 }
 \description{
 ST-DBSCAN法でクラスタリングを行います。

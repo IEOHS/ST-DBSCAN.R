@@ -39,7 +39,7 @@ checkCond <- function(ts = list(upper = "rsq >= 0.8 & 6 >= rmse",
 #'
 #' @export
 #' @param x クラスタリングに指定したデータセット (配列)。列: 位置情報、行: 時系列データとして作成
-# @param checkmode クラスタリングの精度検証 について、時系列 ("temporal"), 空間 ("spatial"), またはこれらの両方を指定します。
+#' @param check_mode クラスタリングの精度検証 について、時系列 ("temporal"), 空間 ("spatial"), またはこれらの両方を指定します。
 #' @param cc `checkCond` 関数をで、時系列及び空間データの精度確認基準を指定します。
 #' @param cluster クラスタリングの結果ラベルを指定します。内部処理ではfactor型に変換されます。
 #' @param geo 位置情報

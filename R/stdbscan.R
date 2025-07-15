@@ -48,6 +48,7 @@ NULL
 #' @param dbscantype クラスターの判定の際、netCDF形式で配布されている気象データのようなグリッドデータでは、常に一定数の隣接点が存在します。
 #' このような場合、ST-DBSCANのもともとの計算アルゴリズムでは必ずクラスターが生成されるため、意図しない計算結果となることが想定されます。
 #' `dbscantype` 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が `minPts` 以上であればクラスターと認識する計算が実行されます。
+#' @param FUN 集計用の計算関数を指定します。
 #' @return
 #' * cluster: valsに指定したデータ数と対応するクラスタリングの結果ラベルが含まれています。
 #' * eps1: `eps1` 引数の値
@@ -92,7 +93,8 @@ stdbscan <- function(x,
                                       delta_eps = double())),
                      metric = c("euclidean", "geo"),
                      neighbortype = c("spatial", "random"),
-                     dbscantype = c("grid", "default")) {
+                     dbscantype = c("grid", "default"),
+                     FUN = mean) {
 
   stopifnot(!is.null(x))
   stopifnot(length(eps1) > 0)
@@ -130,7 +132,7 @@ stdbscan <- function(x,
   }
 
   message("\n2. Calculation Cluster")
-  cluster <- try(as.factor(st_dbscan(nb = nb, vals = vals, type = dbscantype, minPts = minPts)))
+  cluster <- try(as.factor(st_dbscan(nb = nb, vals = vals, type = dbscantype, minPts = minPts, FUN = FUN)))
   if (class(cluster) == "try-error") {
     stop("Calc Error: Check your `vals` data.")
   }
@@ -225,11 +227,12 @@ stdbscan <- function(x,
 #' @param type
 #' * "grid": For Grid data. Adjust nb size before calc.
 #' * "default": For normal(random point) data. not Adjustment.
+#' @param FUN 集計用の計算関数を指定します。
 st_dbscan <- function(nb = NULL,
                       vals = list(list(D = NULL, ## val list
                                        delta_eps = 5)),
                       type = c("grid", "default"),
-                      minPts = 10) {
+                      minPts = 10, FUN = mean) {
   type <- match.arg(type)
   stopifnot(is.list(vals))
   stopifnot(!is.null(nb))
@@ -252,7 +255,7 @@ st_dbscan <- function(nb = NULL,
                    mean_val = lapply(vals, function(m) {
                      m$D[i]
                    }),
-                   label = NULL, mode = "all")
+                   label = NULL, mode = "all", FUN = FUN)
       } else if (type == "default") {
         nb[[i]]
       }
@@ -277,7 +280,7 @@ st_dbscan <- function(nb = NULL,
                                  m$D[clustnum]
                                }),
                                label = label,
-                               mode = "step")
+                               mode = "step", FUN = FUN)
             nodeList <- c(nodeList, node)
             
             label[node] <- ifelse(label[node] == "Noise",
@@ -306,12 +309,14 @@ st_dbscan <- function(nb = NULL,
 #' @param mode
 #' * "all": 全ての計算を一括で行います。各値と平均値との差をベクトル演算するため、計算回数は少ない反面クラスター平均からの距離 (Δeps) は不正確なります。平均値が変わらない場合に利用可能です。
 #' * "step": 逐次計算を実行し、各値と平均値との差の計算を毎回実行し、クラスター平均からの距離 (Δeps) に正確に返します。
+#' @param FUN 集計用の計算関数を指定します。
 rneighbors <- function(nblist,
                        vals,
                        #num,
                        mean_val = list(),
                        label = NULL,
-                       mode = "step") {
+                       mode = "step",
+                       FUN = mean) {
   #nblist <- nb[[num]]
   base <- list()
   for (i in seq(1, length(vals), by = 1)) {
@@ -320,7 +325,8 @@ rneighbors <- function(nblist,
                                 x = m$D[nblist],
                                 deps = m$delta_eps,
                                 mean_val = mean_val[[i]],
-                                mode = mode)
+                                mode = mode,
+                                FUN = FUN)
   }
   ret <- if (length(vals) > 1) {
     intersects(base)
@@ -336,22 +342,25 @@ rneighbors <- function(nblist,
 
 
 rneighbors_one <- function(nb, x, deps, mean_val,
-                           mode = "all") {
+                           mode = "all", FUN = mean) {
   if (mode == "all") {
     if (length(mean_val) > 1) {
-      mean_val <- mean(mean_val)
+      #mean_val <- mean(mean_val)
+      mean_val <- FUN(mean_val)
     }
     return(nb[abs(x - mean_val) <= deps])
   } else if (mode == "step") {
     stopifnot(length(mean_val) > 1)
     ret <- rep(NA, length(x))
-    local_mean_value <- mean(mean_val)
+    #local_mean_value <- mean(mean_val)
+    local_mean_value <- FUN(mean_val)
     for (i in seq(1, length(x), by = 1)) {
       ch <- abs(x[i] - local_mean_value) <= deps
       if (ch) {
         ret[i] <- TRUE
         mean_val <- c(mean_val, x[i])
-        local_mean_value <- mean(mean_val)
+        #local_mean_value <- mean(mean_val)
+        local_mean_value <- FUN(mean_val)
       } else {
         ret[i] <- FALSE
       }

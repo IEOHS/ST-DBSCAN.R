@@ -4,7 +4,14 @@
 \alias{rneighbors}
 \title{retrive neighbors function.}
 \usage{
-rneighbors(nblist, vals, mean_val = list(), label = NULL, mode = "step")
+rneighbors(
+  nblist,
+  vals,
+  mean_val = list(),
+  label = NULL,
+  mode = "step",
+  FUN = mean
+)
 }
 \arguments{
 \item{nblist}{\code{stnb} 関数の出力結果を指定します。}
@@ -19,6 +26,8 @@ rneighbors(nblist, vals, mean_val = list(), label = NULL, mode = "step")
 \item "all": 全ての計算を一括で行います。各値と平均値との差をベクトル演算するため、計算回数は少ない反面クラスター平均からの距離 (Δeps) は不正確なります。平均値が変わらない場合に利用可能です。
 \item "step": 逐次計算を実行し、各値と平均値との差の計算を毎回実行し、クラスター平均からの距離 (Δeps) に正確に返します。
 }}
+
+\item{FUN}{集計用の計算関数を指定します。}
 }
 \description{
 隣接点を探します。

@@ -5,10 +5,10 @@
 \title{check list for Spatio-Temporal data.}
 \usage{
 checkCond(
-  ts = list(upper = "rsq >= 0.7 & 6 >= rmse", middle =
-    "0.7 > rsq & rsq >= 0.4 & 9 >= rmse", lower = "0.4 > rsq & rsq > 0.2 & 12 >= rmse"),
-  sp = list(upper = "z_value > 0 & 0.01 >= adj_p_value", middle =
-    "z_value > 0 & 0.05 >= adj_p_value", lower = "0.05 >= adj_p_value")
+  ts = list(upper = "rsq >= 0.8 & 6 >= rmse", middle = "rsq >= 0.7 & 10 >= rmse", lower =
+    "rsq >= 0.6 & 13 >= rmse"),
+  sp = list(upper = "z_value > 0 & 0.001 >= adj_p_value", middle =
+    "z_value > 0 & 0.01 >= adj_p_value", lower = "z_value > 0 & 0.05 >= adj_p_value")
 )
 }
 \arguments{
