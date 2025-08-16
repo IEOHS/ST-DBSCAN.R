@@ -171,7 +171,7 @@ stclust <- function(x = NULL,
       ## sparse model
       sparse_model <- if (any(class(ts_data) == "ts")) {
         tryCatch({
-          message("fit sparse model: ", m)
+          message("\tfit sparse model: ", m)
           sparseDFM::sparseDFM(ts_data,
                                r = ts_num_factor,
                                alg = "EM")
@@ -188,7 +188,7 @@ stclust <- function(x = NULL,
                                  alg = "EM")
           }
         }, finally = {
-          message("complete. ")
+          message("\tcomplete. ")
         })
       } else if (is.null(ts_data)) {
         NULL
@@ -228,6 +228,9 @@ stclust <- function(x = NULL,
   }
 
   ## merge sp_model and ts_model
+  if (any(check_mode == "temporal")) {
+    message("3. Evaluate spatial agglomeration.")
+  }
   m_data <- if (all(check_mode == c("spatial", "temporal"))) {
     merge(as.data.frame(do.call(rbind, lapply(ts_model, function(m) {
       with(m, {
@@ -282,6 +285,7 @@ stclust <- function(x = NULL,
   })
 
   ## return
+  message("\nFinally.")
   ret <- list(results = res_table,
               check_mode = check_mode,
               sp_model = local({
