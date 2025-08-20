@@ -6,7 +6,7 @@
 \usage{
 stclust(
   x = NULL,
-  check_mode = c("spatial", "temporal"),
+  check_mode = c("spatial", "temporal", "coastline"),
   cc = checkCond(),
   cluster = NULL,
   geo = NULL,

@@ -32,6 +32,57 @@ checkCond <- function(ts = list(upper = "rsq >= 0.8 & 6 >= rmse",
   list(ts = ts, sp = sp)
 }
 
+#' Creates a specific area based on the location of the measuring station.
+#'
+#' 測定局の位置情報から、バッファー領域、ボロノイ分割（測定局間の距離が等しくなるライン）を作成し、海岸線でクリッピングします。
+#' また、作成されたこれらの地図の重なりでクリッピングを行います。
+#'
+#' @export
+#' @param geo sfcクラスの位置情報を指定します。
+#' @param voronoi TRUE の場合、ボロノイ分割地図を作成します。
+#' @param buffer TRUE の場合、測定局中心地点から `dist` 引数で指定する距離のバッファー領域を作成します。
+#' `voronoi = TRUE` の場合は、ボロノイ分割地図とバッファー領域が重なる領域 (intersection) を出力します。
+#' @param dist `buffer = TRUE` の場合に作成するバッファー領域半径 (m) を指定します。
+#' @param coast TRUE の場合、海岸線で全体をクリッピングします。
+#' @param coastline `coast = TRUE` の場合に利用する海岸線情報をsfcクラスのポリゴンで指定します。
+#' @examples
+#' createBufferMap(geo = geo, voronoi = TRUE, buffer = TRUE, dist = 20000, coast = TRUE, coastline = sf::st_cfc())
+createBufferMap <- function(geo = sf::st_sfc(),
+                            voronoi = TRUE,
+                            buffer = TRUE,
+                            dist = 10000,
+                            coast = TRUE,
+                            coastline = sf::sfc()) {
+
+  nmap <- NULL  
+  if (voronoi) {
+    nmap <- sf::st_sfc(lapply(deldir::tile.list(deldir::deldir(sf::st_coordinates(geo))),
+                              function(v) {
+                                po <- cbind(v$x, v$y)
+                                sf::st_polygon(list(rbind(po, po[1, ])))
+                              }), crs = 4326)
+  }
+  if (buffer) {
+    bmap <- sf::st_buffer(geo, dist = dist)
+    if (is.null(nmap)) {
+      nmap <- bmap
+    } else {
+      nmap <- sf::st_sfc(Map(sf::st_intersection, nmap, bmap), crs = 4326)
+    }
+    rm(bmap)
+  }
+  if (coast) {
+    cmap <- sf::st_intersection(nmap, coastline)
+    if (is.null(nmap)) {
+      nmap <- cmap
+    } else {
+      nmap <- sf::st_intersection(nmap, coastline)
+    }
+    rm(cmap)
+  }
+  return(nmap)
+}
+
 
 #' evaluate the time series similarity and spatial aggregation of clustering results.
 #'
@@ -77,7 +128,7 @@ checkCond <- function(ts = list(upper = "rsq >= 0.8 & 6 >= rmse",
 #'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
 #' stclust(x = matrix(D, ncol = length(t)), cluster = cutclust(clust, 5)$cluster, geo = clust$results$geo)
 stclust <- function(x = NULL,
-                    check_mode = c("spatial", "temporal"),
+                    check_mode = c("spatial", "temporal", "coastline"),
                     cc = checkCond(), 
                     cluster = NULL,
                     geo = NULL,
@@ -92,7 +143,6 @@ stclust <- function(x = NULL,
   check_mode <- match.arg(check_mode,
                           choices = c("spatial", "temporal"),
                           several.ok = TRUE)
-
   
   ## clustering labels
   cluster <- as.factor(cluster)
@@ -119,6 +169,7 @@ stclust <- function(x = NULL,
     neighbor_method <- substitute(neighbor_method)
     neighbor_option <- substitute(neighbor_option)
 
+    
     ##nb <- do.call(neighbor_method, c(list(x = geo), neighbor_option))
     nb <- eval(bquote(do.call(.(neighbor_method),
                               c(list(x = geo), .(neighbor_option)))))

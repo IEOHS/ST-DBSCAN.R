@@ -241,8 +241,14 @@ st_dbscan <- function(nb = NULL,
   cluster <- 0
 
   ## set cluster column
-  ## label <- rep(NA, times = length(nb))
-  label <- rep("Noise", times = length(nb))
+  # label <- rep("Noise", times = length(nb))
+  # if contain NA value the create "cluter_NA" label at that position.
+  # otherwise, create "Noise" label.
+  label <- ifelse(apply(do.call(cbind,
+                                Map(function(x) x$D,
+                                    vals)),
+                        1, function(x) any(is.na(x))),
+                  "cluster_NA", "Noise")
   
   ## st-dbscan
   message("\nStart Clustering:  ", date())
@@ -292,6 +298,10 @@ st_dbscan <- function(nb = NULL,
       }
     }
   }
+
+  ## Convert "cluster_NA" label to "Noise" label
+  label <- ifelse(label == "cluster_NA", "Noise", label)
+  
   message("\n", date(), "  Completed.")
   return(label)
 }

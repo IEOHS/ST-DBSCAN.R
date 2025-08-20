@@ -3,7 +3,6 @@
 %   R/hstdbscan.R, R/plot.R, R/print.R, R/stdbscan-package.R, R/stdbscan.R
 \docType{package}
 \name{stdbscan-package}
-\alias{stdbscan}
 \alias{stdbscan-package}
 \title{stdbscan: Spatio Temporal Density Based Scanning Clustering. (One Line, Title Case)}
 \description{

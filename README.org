@@ -281,6 +281,59 @@ First 10 features:
 10       2 10 POINT (139 30)
 #+end_src
 
+** Methods for evaluating clustering results
+
+クラスタリングの結果を評価する方法として、シルエットスコアなどの指針値が利用されています。
+
+一方で、時間・空間属性を持つデータのクラスタリングでは、時系列類似性と空間的集塊性が重要な意味を持つことがあります。
+
+一対の時系列データに関する時系列類似性は、R^{2}値やRMSEなどの統計的手法で類似度を確認することができますが、3つ以上の時系列データの場合はこれらの方法をそのまま利用することはできません。
+そのため、 ~stdbscan~ パッケージでは動的因子モデル (DFM) で複数の時系列データから因子を抽出し、その因子との類似性を確認することで、時系列類似性の評価を行っています (~sparseDFM~ package)。
+
+空間的集塊性の評価には一般に ~Moran's I Statics~ が利用されています。
+~Moran's I Statics~ では空間的なデータのばらつきを評価するため、空間的集塊性を定量化することができます。
+~stdbscan~ パッケージでは ~Join-Count Statistics~ を利用しています (~spdep~ package)。
+
+
+*** Creating Map Data with Adjacent Points
+
+デモデータとして、2019年度の九州地方の一部 (福岡県、佐賀県、長崎県、熊本県、大分県、宮崎県、鹿児島県) の光化学オキシダント濃度データ[fn:2] を改変して利用します。
+
+#+begin_src R
+  data("oxdata", package = "stdbscan")
+  str(oxdata)
+#+end_src
+
+隣接点情報を作成します。
+
+#+begin_src R
+  oxmap <- createBufferMap(geo = sf::st_geometry(oxdata$geo$predict_map), voronoi = TRUE, buffer = TRUE, dist = 18100, coast = TRUE, coastline = sf::st_union(oxdata$geo$gov_map))
+#+end_src
+
+#+name: code:plot-oxmap
+#+begin_src R :results file graphics :file "./inst/plot-oxmap.png" :width 800 :height 800 :exports both :res 120
+  plot(oxmap)
+#+end_src
+
+#+name: fig:plot-oxmap
+#+attr_html: :width 500px
+#+RESULTS: code:plot-oxmap
+[[file:./inst/plot-oxmap.png]]
+
+
+
+*** Run Clustering
+
+#+begin_src R
+  clust <- geostclust(geo = sf::st_geometry(oxdata$geo$predict_map),
+                      times = as.POSIXct(paste0(gsub("_", "", colnames(oxdata$data)[720:1463]), ":00:00")),
+                      cuts = c(4, 8, 16, 32),
+                      method = "hstdbscan",
+                      eps1 = 18100, eps2 = 3600, minPts = 6,
+                      vals = list(list(D = ifelse(is.na(oxdata$data[, 720:1463]), -999, oxdata$data[, 720:1463]), #oxdata$data,
+                                       delta_eps = 20)))
+#+end_src
+
 ** help
 その他使い方に関しては、関数のヘルプを参照してください。
 
@@ -290,10 +343,5 @@ First 10 features:
 
 
 * Footnotes
-
-[fn:3] https://cran.r-project.org/
-[fn:2] https://julialang.org/
+[fn:2] 国立環境研究所 環境展望台 大気汚染常時監視データファイル: https://tenbou.nies.go.jp/download/, (2025-08-20アクセス).
 [fn:1] BIRANT, Derya; KUT, Alp. ST-DBSCAN: An algorithm for clustering spatial–temporal data. Data & knowledge engineering, 2007, 60.1: 208-221. https://www.sciencedirect.com/science/article/pii/S0169023X06000218
-
-
-
