@@ -14,7 +14,8 @@ stdbscan(
   metric = c("euclidean", "geo"),
   neighbortype = c("spatial", "random"),
   dbscantype = c("grid", "default"),
-  FUN = mean
+  FUN = mean,
+  na_value = -9999
 )
 }
 \arguments{
@@ -54,6 +55,10 @@ list(list(D = vector(), delta_eps = double()), list(D = vector(), delta_eps = do
 \code{dbscantype} 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が \code{minPts} 以上であればクラスターと認識する計算が実行されます。}
 
 \item{FUN}{集計用の計算関数を指定します。}
+
+\item{na_value}{元データ (D) にNA値が含まれている場合に代替する値を指定します。
+なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
+Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。}
 }
 \value{
 \itemize{

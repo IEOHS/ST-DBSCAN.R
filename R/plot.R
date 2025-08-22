@@ -2,9 +2,22 @@
 "_PACKAGE"
 
 ## usethis namespace: start
+#' @import sf
 ## usethis namespace: end
 NULL
 
+
+
+# plot.stclust <- function(x, bgmap, ...) {
+#   map <- rbind(x$geo, sf::st_sf(cluster = NA, sp_check = NA, ts_check = NA, geometry = sf::st_geometry(bgmap)))
+#   cols <- sf::sf.colors(n = length(levels(x$geo$cluster)), categorical = TRUE)
+#   legend_icon <- c("***", "**", "*", ".")
+#   plot(map, ...)
+#   legend("bottomleft", legend = levels(x$geo$cluster),
+#          col = cols, pch = 20, title = "Cluster color", ncol = 4)
+#   legend("bottomright", legend = c("***", "**", "*", "."),
+#          col = cols[1:4], pch = 20, title = "checks")
+# }
 
 #' plot stclust data
 #'

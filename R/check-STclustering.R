@@ -128,7 +128,7 @@ createBufferMap <- function(geo = sf::st_sfc(),
 #'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
 #' stclust(x = matrix(D, ncol = length(t)), cluster = cutclust(clust, 5)$cluster, geo = clust$results$geo)
 stclust <- function(x = NULL,
-                    check_mode = c("spatial", "temporal", "coastline"),
+                    check_mode = c("spatial", "temporal"),
                     cc = checkCond(), 
                     cluster = NULL,
                     geo = NULL,
@@ -169,19 +169,26 @@ stclust <- function(x = NULL,
     neighbor_method <- substitute(neighbor_method)
     neighbor_option <- substitute(neighbor_option)
 
-    
+    message("\tCreate neighbor list")
     ##nb <- do.call(neighbor_method, c(list(x = geo), neighbor_option))
-    nb <- eval(bquote(do.call(.(neighbor_method),
+    if (deparse(neighbor_method) == "spdep::poly2nb") {
+      nb <- eval(bquote(do.call(.(neighbor_method),
+                              c(list(pl = geo), .(neighbor_option)))))
+    } else {
+      nb <- eval(bquote(do.call(.(neighbor_method),
                               c(list(x = geo), .(neighbor_option)))))
+    }
+    
     if (class(nb) == "knn") {
       nb <- spdep::knn2nb(nb)
     }
     w <- spdep::nb2listw(nb, zero.policy = TRUE)
 
+    message("\tRun Join-Count")
     ## Spatial Self-Correlation Analysis
     jc_data <- spdep::joincount.multi(cluster, listw = w)
     jc_mc_data <- spdep::joincount.mc(cluster, listw = w, nsim = nsim)
-
+    
     sp_model <- cbind(cluster = levels(cluster),
                       data.frame(jc_data[paste(levels(cluster), levels(cluster), sep = ":"),
                                          c("Joincount", "z-value")]),
@@ -257,12 +264,16 @@ stclust <- function(x = NULL,
       } else {
         ts_data
       }
-
+      
       ## r.squared
       if (!is.null(fit)) {
-        r2_d <- rsq(as.vector(ts_data),
+        # r2_d <- rsq(as.vector(ts_data),
+        #             as.vector(fit))
+        # rmse_d <- rmse(as.vector(ts_data),
+        #                as.vector(fit))
+        r2_d <- rsq(as.vector(ts_data[, colnames(fit)]),
                     as.vector(fit))
-        rmse_d <- rmse(as.vector(ts_data),
+        rmse_d <- rmse(as.vector(ts_data[, colnames(fit)]),
                        as.vector(fit))
       } else {
         r2_d <- rmse_d <- NULL
@@ -364,10 +375,16 @@ stclust <- function(x = NULL,
               geo = dplyr::left_join(x = sf::st_sf(cluster = cluster,
                                                    geometry = sf::st_transform(geo,
                                                                                crs = 4326)),
-                                     y = subset(res_table,
-                                                select = c(as.factor(cluster),
-                                                           factor(sp_check, levels = c("***", "**", "*", ".")),
-                                                           factor(ts_check, levels = c("***", "**", "*", ".")))),
+                                     # y = subset(res_table,
+                                     #            select = c(as.factor(cluster),
+                                     #                       factor(sp_check, levels = c("***", "**", "*", ".")),
+                                     #                       factor(ts_check, levels = c("***", "**", "*", ".")))),
+                                     y = with(res_table, {
+                                       cluster <- as.factor(cluster)
+                                       sp_check <- factor(sp_check, levels = c("***", "**", "*", "."))
+                                       ts_check <- factor(ts_check, levels = c("***", "**", "*", "."))
+                                       data.frame(cluster, sp_check, ts_check)
+                                     }),
                                      by = "cluster"),
               check_conditions = cc,
               data = x,
@@ -383,6 +400,7 @@ stclust <- function(x = NULL,
               # neighbor_method = deparse(bquote(do.call(.(neighbor_method),
               #                                          c(list(x = geo), .(neighbor_option))))),
               nsim = nsim)
+  message("All completed. ", date())
   structure(ret, class = "stclust")
 }
 

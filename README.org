@@ -1,4 +1,4 @@
-#+property: header-args:R :session *R* :exports both :results code output :eval no-export
+#+property: header-args:R :session *R* :exports both :results code output :eval no-export 
 
 * stdbscan package.
 ST-DBSCAN (density-based clustering applicable Spatio-Temporal data.) [fn:1]は密度ベースのクラスタリング手法であり、時空間データの解像度はそのままにクラスタリングを行い、ホットスポット検出など時空間データの解析に広く利用されている手法です。
@@ -300,18 +300,34 @@ First 10 features:
 デモデータとして、2019年度の九州地方の一部 (福岡県、佐賀県、長崎県、熊本県、大分県、宮崎県、鹿児島県) の光化学オキシダント濃度データ[fn:2] を改変して利用します。
 
 #+begin_src R
+  library(stdbscan)
   data("oxdata", package = "stdbscan")
-  str(oxdata)
+  str(oxdata, 2)
 #+end_src
 
-隣接点情報を作成します。
-
+#+RESULTS:
 #+begin_src R
-  oxmap <- createBufferMap(geo = sf::st_geometry(oxdata$geo$predict_map), voronoi = TRUE, buffer = TRUE, dist = 18100, coast = TRUE, coastline = sf::st_union(oxdata$geo$gov_map))
+List of 2
+ $ data: int [1:143, 1:2183] 47 50 NA 52 56 NA 49 45 47 51 ...
+  ..- attr(*, "dimnames")=List of 2
+ $ geo :List of 2
+  ..$ gov_map    :Classes ‘sf’ and 'data.frame':	7 obs. of  2 variables:
+  .. ..- attr(*, "sf_column")= chr "geometry"
+  .. ..- attr(*, "agr")= Factor w/ 3 levels "constant","aggregate",..: NA
+  .. .. ..- attr(*, "names")= chr "id"
+  ..$ predict_map:Classes ‘sf’ and 'data.frame':	143 obs. of  4 variables:
+  .. ..- attr(*, "sf_column")= chr "geometry"
+  .. ..- attr(*, "agr")= Factor w/ 3 levels "constant","aggregate",..: NA NA NA
+  .. .. ..- attr(*, "names")= chr [1:3] "id" "name" "pref"
 #+end_src
+
+隣接点情報を持つ地図を作成します。
 
 #+name: code:plot-oxmap
 #+begin_src R :results file graphics :file "./inst/plot-oxmap.png" :width 800 :height 800 :exports both :res 120
+  oxmap <- createBufferMap(geo = sf::st_geometry(oxdata$geo$predict_map),
+                           voronoi = TRUE, buffer = TRUE, dist = 18100,
+                           coast = TRUE, coastline = sf::st_union(oxdata$geo$gov_map))
   plot(oxmap)
 #+end_src
 
@@ -320,19 +336,241 @@ First 10 features:
 #+RESULTS: code:plot-oxmap
 [[file:./inst/plot-oxmap.png]]
 
-
-
 *** Run Clustering
 
-#+begin_src R
+~hstdbscan~ で位置情報クラスターを作成します。
+~geostclust~ 関数ではクラスターの分割数を ~cuts~ 引数で複数指定することができ、今回は ~k = 4, 8, 16, 32~ の分割数に設定しています。
+
+#+begin_src R :async yes 
   clust <- geostclust(geo = sf::st_geometry(oxdata$geo$predict_map),
-                      times = as.POSIXct(paste0(gsub("_", "", colnames(oxdata$data)[720:1463]), ":00:00")),
+                      times = as.POSIXct(paste0(gsub("_", "", colnames(oxdata$data)[720:767]), ":00:00")),
                       cuts = c(4, 8, 16, 32),
                       method = "hstdbscan",
-                      eps1 = 18100, eps2 = 3600, minPts = 6,
-                      vals = list(list(D = ifelse(is.na(oxdata$data[, 720:1463]), -999, oxdata$data[, 720:1463]), #oxdata$data,
+                      eps1 = 18.1, eps2 = 3600, minPts = 6,
+                      vals = list(list(D = oxdata$data[, 720:767], #ifelse(is.na(oxdata$data[, 720:1463]), -999, oxdata$data[, 720:1463]),
                                        delta_eps = 20)))
 #+end_src
+
+#+RESULTS:
+#+begin_src none
+===== Start ST-DBSCAN method =====
+
+1. Calculation Neighbor List
+
+2. Calculation Cluster
+
+Start Clustering:  Fri Aug 22 11:37:05 2025
+	Create Cluster: 1
+	Create Cluster: 2
+	Create Cluster: 3
+	Create Cluster: 4
+	Create Cluster: 5
+	Create Cluster: 6
+	Create Cluster: 7
+	Create Cluster: 8
+	Create Cluster: 9
+	Create Cluster: 10
+	Create Cluster: 11
+	Create Cluster: 12
+	Create Cluster: 13
+	Create Cluster: 14
+	Create Cluster: 15
+	Create Cluster: 16
+	Create Cluster: 17
+	Create Cluster: 18
+	Create Cluster: 19
+	Create Cluster: 20
+	Create Cluster: 21
+	Create Cluster: 22
+	Create Cluster: 23
+	Create Cluster: 24
+	Create Cluster: 25
+	Create Cluster: 26
+	Create Cluster: 27
+	Create Cluster: 28
+	Create Cluster: 29
+	Create Cluster: 30
+	Create Cluster: 31
+	Create Cluster: 32
+	Create Cluster: 33
+	Create Cluster: 34
+	Create Cluster: 35
+	Create Cluster: 36
+	Create Cluster: 37
+	Create Cluster: 38
+	Create Cluster: 39
+	Create Cluster: 40
+	Create Cluster: 41
+	Create Cluster: 42
+	Create Cluster: 43
+	Create Cluster: 44
+	Create Cluster: 45
+	Create Cluster: 46
+	Create Cluster: 47
+	Create Cluster: 48
+
+Fri Aug 22 11:37:07 2025  Completed.
+
+Completed.
+#+end_src
+
+
+クラスタリングの結果をプロットすると、以下のように色分けされた結果が表示されます。
+このクラスタリング結果についての妥当性検証を行います。
+
+#+name: code:plot-geostclust
+#+begin_src R :results file graphics :file "./inst/plot-geostclust.png" :width 1500 :height 400 :exports both :res 120
+  plot(clust$cluster)
+#+end_src
+
+#+name: fig:plot-geostclust
+#+attr_html: :width 1000px
+#+RESULTS: code:plot-geostclust
+[[file:./inst/plot-geostclust.png]]
+
+
+*** Clustering validation
+
+クラスタリング結果の検証を行います。
+以下では、クラスター数を8とした場合の結果を元に検証しています。
+
+~neighbor_method~ では隣接情報の作成方法を指定しています。
+関数は ~spdep::poly2nb~, ~spdep::knearneigh~, ~spdep::dnearneigh~ の3つが利用できます。
+~spdep::knearneigh~ の場合は隣接数 (~k~) を必ず指定する必用があります。
+
+検証に用いる基準は自ら設定する必用があります。
+~checkCond~ 関数を利用し、時系列データの検証及び集塊性の判定基準を upper, middle, lower をそれぞれ設定します。
+
+
+#+begin_src R :async yes 
+  valid <- stclust(x = oxdata$data[, 720:767],
+                   cluster = clust$cluster$hstdbscan_8_cluster,
+                   geo = oxmap, ## 隣接点を作成したマップを利用
+                   neighbor_method = spdep::poly2nb, ## 隣接情報の作成関数
+                   neighbor_option = list() ## 引数値の指定
+                   )
+#+end_src
+
+#+RESULTS:
+#+begin_src none
+1. Check cluster agglomeration properties in geospatial areas.
+	Create neighbor list
+	Run Join-Count
+Complete 1.
+2. Evaluate the similarity of time series data.
+	Check cluster: 1
+	fit sparse model: 1
+	complete. 
+	Check cluster: 2
+	fit sparse model: 2
+Columns: 129 are entirely missing. Removing these columns.
+	complete. 
+	Check cluster: 3
+	fit sparse model: 3
+	complete. 
+	Check cluster: 4
+	fit sparse model: 4
+	complete. 
+	Check cluster: 5
+	fit sparse model: 5
+	complete. 
+	Check cluster: 6
+	fit sparse model: 6
+	complete. 
+	Check cluster: 7
+	fit sparse model: 7
+	complete. 
+	Check cluster: 8
+	fit sparse model: 8
+	complete. 
+Complete 2.
+3. Evaluate spatial agglomeration.
+
+Finally.
+#+end_src
+
+#+begin_src R
+  print(valid)
+#+end_src
+
+#+RESULTS:
+#+begin_src R
+Display of time-series similarity and spatial agglomeration
+  assessment in clustering results
+Check-mode: spatialtemporal
+
+Results: 
+  cluster  rsq rmse Joincount   z_value p_value adj_p_value sp_check ts_check
+1       1 0.87 6.79 28.261905 12.213382   0.001 0.001142857       **       **
+2       2 0.84 7.36  3.791667  1.907261   0.014 0.014000000        *       **
+3       3 0.88 5.59  6.260714 12.843759   0.001 0.001142857       **      ***
+4       4 0.90 5.50  3.066667 12.361951   0.001 0.001142857       **      ***
+5       5 0.94 5.34  7.553571 12.726446   0.001 0.001142857       **      ***
+6       6 0.85 5.48  1.166667 10.206818   0.001 0.001142857       **      ***
+7       7 0.93 5.08  1.625000 14.380491   0.001 0.001142857       **      ***
+8       8 0.82 6.00  2.958333 13.902581   0.001 0.001142857       **      ***
+---
+Signif. codes: 
+  Spatials (sp_check): 
+	'***' z_value > 0 & 0.001 >= adj_p_value
+	'**'  z_value > 0 & 0.01 >= adj_p_value
+	'*'   z_value > 0 & 0.05 >= adj_p_value
+	'.'   others.
+  Time-Series (ts_check): 
+	'***' rsq >= 0.8 & 6 >= rmse
+	'**'  rsq >= 0.7 & 10 >= rmse
+	'*'   rsq >= 0.6 & 13 >= rmse
+	'.'   others.
+
+Geospatial data (sf-class): 
+
+Simple feature collection with 143 features and 3 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: 129.4813 ymin: 31.19678 xmax: 132.1002 ymax: 34.02195
+Geodetic CRS:  WGS 84
+First 10 features:
+   cluster sp_check ts_check                       geometry
+1        1       **       ** MULTIPOLYGON (((130.9021 33...
+2        1       **       ** MULTIPOLYGON (((131.0039 33...
+3        2        *       ** MULTIPOLYGON (((130.9424 33...
+4        1       **       ** MULTIPOLYGON (((130.8117 33...
+5        1       **       ** MULTIPOLYGON (((130.6 33.87...
+6        2        *       ** MULTIPOLYGON (((130.7342 33...
+7        1       **       ** MULTIPOLYGON (((130.8193 33...
+8        1       **       ** MULTIPOLYGON (((130.8497 33...
+9        1       **       ** MULTIPOLYGON (((130.8647 33...
+10       1       **       ** MULTIPOLYGON (((130.9765 33...
+#+end_src
+
+*** Plotting Verification Results
+検証結果をプロットします。
+
+#+name: code:plot-valid
+#+begin_src R :results file graphics :file "./inst/plot-valid.png" :width 800 :height 800 :exports both :res 120
+  library(ggplot2)
+  p1 <- ggplot() +
+    geom_sf(data = oxdata$geo$gov_map, fill = "white") +
+    geom_sf(data = valid$geo,
+            aes(fill = cluster)) +
+    geom_sf(data = sf::st_geometry(oxdata$geo$predict_map), fill = NA, shape = 1) +
+    coord_sf(xlim = c(128.5, 132), ylim = c(31, 34.5))
+  p2 <- ggplot() +
+    geom_sf(data = oxdata$geo$gov_map, fill = "white") +
+    geom_sf(data = tidyr::pivot_longer(subset(valid$geo, select = -cluster),
+                                       cols = -c(geometry)),
+            aes(fill = value)) +
+    geom_sf(data = sf::st_geometry(oxdata$geo$predict_map), fill = NA, shape = 1) +
+    facet_wrap(name ~ .) +
+    coord_sf(xlim = c(128.5, 132), ylim = c(31, 34.5))
+  gridExtra::grid.arrange(p1, p2, nrow = 2)
+#+end_src
+
+#+name: fig:plot-valid
+#+attr_html: :width 500px
+#+RESULTS: code:plot-valid
+[[file:./inst/plot-valid.png]]
+
 
 ** help
 その他使い方に関しては、関数のヘルプを参照してください。

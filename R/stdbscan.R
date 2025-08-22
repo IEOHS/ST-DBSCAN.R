@@ -49,6 +49,9 @@ NULL
 #' このような場合、ST-DBSCANのもともとの計算アルゴリズムでは必ずクラスターが生成されるため、意図しない計算結果となることが想定されます。
 #' `dbscantype` 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が `minPts` 以上であればクラスターと認識する計算が実行されます。
 #' @param FUN 集計用の計算関数を指定します。
+#' @param na_value 元データ (D) にNA値が含まれている場合に代替する値を指定します。
+#' なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
+#' Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。
 #' @return
 #' * cluster: valsに指定したデータ数と対応するクラスタリングの結果ラベルが含まれています。
 #' * eps1: `eps1` 引数の値
@@ -94,7 +97,7 @@ stdbscan <- function(x,
                      metric = c("euclidean", "geo"),
                      neighbortype = c("spatial", "random"),
                      dbscantype = c("grid", "default"),
-                     FUN = mean) {
+                     FUN = mean, na_value = -9999) {
 
   stopifnot(!is.null(x))
   stopifnot(length(eps1) > 0)
@@ -130,9 +133,9 @@ stdbscan <- function(x,
   if (class(nb) == "try-error") {
     stop("Calc Error: Check your `x` data.")
   }
-
+  
   message("\n2. Calculation Cluster")
-  cluster <- try(as.factor(st_dbscan(nb = nb, vals = vals, type = dbscantype, minPts = minPts, FUN = FUN)))
+  cluster <- try(as.factor(st_dbscan(nb = nb, vals = vals, type = dbscantype, minPts = minPts, FUN = FUN, na_value = na_value)))
   if (class(cluster) == "try-error") {
     stop("Calc Error: Check your `vals` data.")
   }
@@ -141,7 +144,7 @@ stdbscan <- function(x,
   obs_name <- paste0("Obs_", seq(1, length(vals), by = 1))
   raw_data <- local({
     d <- do.call(data.frame, lapply(vals, function(m) {
-      m$D
+      as.vector(m$D)
     }))
     names(d) <- obs_name
     ret <- list()
@@ -228,11 +231,14 @@ stdbscan <- function(x,
 #' * "grid": For Grid data. Adjust nb size before calc.
 #' * "default": For normal(random point) data. not Adjustment.
 #' @param FUN 集計用の計算関数を指定します。
+#' @param na_value 元データ (D) にNA値が含まれている場合に代替する値を指定します。
+#' なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
+#' Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。
 st_dbscan <- function(nb = NULL,
                       vals = list(list(D = NULL, ## val list
                                        delta_eps = 5)),
                       type = c("grid", "default"),
-                      minPts = 10, FUN = mean) {
+                      minPts = 10, FUN = mean, na_value = -9999) {
   type <- match.arg(type)
   stopifnot(is.list(vals))
   stopifnot(!is.null(nb))
@@ -245,10 +251,18 @@ st_dbscan <- function(nb = NULL,
   # if contain NA value the create "cluter_NA" label at that position.
   # otherwise, create "Noise" label.
   label <- ifelse(apply(do.call(cbind,
-                                Map(function(x) x$D,
+                                Map(function(x) as.vector(x$D),
                                     vals)),
                         1, function(x) any(is.na(x))),
                   "cluster_NA", "Noise")
+  if (is.matrix(vals[[1]]$D)) {
+    label <- matrix(label, nrow = nrow(vals[[1]]$D), ncol = ncol(vals[[1]]$D))
+  }
+  vals <- lapply(vals, function(x) {
+    within(x, {
+      D <- as.vector(ifelse(is.na(D), na_value, D))
+    })
+  })
   
   ## st-dbscan
   message("\nStart Clustering:  ", date())
@@ -265,7 +279,7 @@ st_dbscan <- function(nb = NULL,
       } else if (type == "default") {
         nb[[i]]
       }
-
+  
       ## minPtsより隣接数が少ない場合は "Noise" 判定
       if (minPts <= length(neighbours)) {
         ## up to cluster number
@@ -274,11 +288,12 @@ st_dbscan <- function(nb = NULL,
         ## set cluster
         label[c(i, neighbours)] <- as.character(cluster)
         message("\tCreate Cluster: ", as.character(cluster))
-
+        
         ## check node and Add Cluster.
         while (length(neighbours) != 0) {
           nodeList <- c()
           for (ni in neighbours) {
+
             clustnum <- which(label == as.character(cluster))
             node <- rneighbors(nb = nb[[ni]],
                                vals = vals,
@@ -288,7 +303,7 @@ st_dbscan <- function(nb = NULL,
                                label = label,
                                mode = "step", FUN = FUN)
             nodeList <- c(nodeList, node)
-            
+
             label[node] <- ifelse(label[node] == "Noise",
                                   as.character(cluster),
                                   label[node])
@@ -338,11 +353,13 @@ rneighbors <- function(nblist,
                                 mode = mode,
                                 FUN = FUN)
   }
+
   ret <- if (length(vals) > 1) {
     intersects(base)
   } else if (length(vals) == 1) {
     base[[1]]
   }
+
   if (!is.null(label)) {
     ret[label[ret] == "Noise"]
   } else {
@@ -355,26 +372,23 @@ rneighbors_one <- function(nb, x, deps, mean_val,
                            mode = "all", FUN = mean) {
   if (mode == "all") {
     if (length(mean_val) > 1) {
-      #mean_val <- mean(mean_val)
       mean_val <- FUN(mean_val)
     }
     return(nb[abs(x - mean_val) <= deps])
   } else if (mode == "step") {
     stopifnot(length(mean_val) > 1)
-    ret <- rep(NA, length(x))
-    #local_mean_value <- mean(mean_val)
+
+    ret <- rep(FALSE, length(x))
+
     local_mean_value <- FUN(mean_val)
     for (i in seq(1, length(x), by = 1)) {
-      ch <- abs(x[i] - local_mean_value) <= deps
-      if (ch) {
+      if (abs(x[i] - local_mean_value) <= deps) {
         ret[i] <- TRUE
         mean_val <- c(mean_val, x[i])
-        #local_mean_value <- mean(mean_val)
         local_mean_value <- FUN(mean_val)
-      } else {
-        ret[i] <- FALSE
-      }
+      } 
     }
+
     return(nb[ret])
   }
 }

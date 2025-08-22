@@ -9,7 +9,8 @@ st_dbscan(
   vals = list(list(D = NULL, delta_eps = 5)),
   type = c("grid", "default"),
   minPts = 10,
-  FUN = mean
+  FUN = mean,
+  na_value = -9999
 )
 }
 \arguments{
@@ -25,6 +26,10 @@ st_dbscan(
 \item{minPts}{minimum number of points}
 
 \item{FUN}{集計用の計算関数を指定します。}
+
+\item{na_value}{元データ (D) にNA値が含まれている場合に代替する値を指定します。
+なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
+Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。}
 }
 \description{
 ST-DBSCAN法でクラスタリングを行います。
