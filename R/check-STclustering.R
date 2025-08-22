@@ -186,8 +186,8 @@ stclust <- function(x = NULL,
 
     message("\tRun Join-Count")
     ## Spatial Self-Correlation Analysis
-    jc_data <- spdep::joincount.multi(cluster, listw = w)
-    jc_mc_data <- spdep::joincount.mc(cluster, listw = w, nsim = nsim)
+    jc_data <- spdep::joincount.multi(cluster, listw = w, zero.policy = TRUE)
+    jc_mc_data <- spdep::joincount.mc(cluster, listw = w, nsim = nsim, zero.policy = TRUE)
     
     sp_model <- cbind(cluster = levels(cluster),
                       data.frame(jc_data[paste(levels(cluster), levels(cluster), sep = ":"),

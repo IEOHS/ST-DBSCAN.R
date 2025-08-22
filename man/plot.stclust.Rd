@@ -4,10 +4,12 @@
 \alias{plot.stclust}
 \title{plot stclust data}
 \usage{
-\method{plot}{stclust}(x, ...)
+\method{plot}{stclust}(x, bgmap = NULL, ...)
 }
 \arguments{
 \item{x}{\code{stclust} 関数の結果オブジェクトを指定します。}
+
+\item{bgmap}{背景用の地図を sf クラスのデータで指定します。}
 
 \item{...}{\code{plot} 関数で指定できる引数を指定します。}
 }

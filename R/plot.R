@@ -7,26 +7,37 @@
 NULL
 
 
-
-# plot.stclust <- function(x, bgmap, ...) {
-#   map <- rbind(x$geo, sf::st_sf(cluster = NA, sp_check = NA, ts_check = NA, geometry = sf::st_geometry(bgmap)))
-#   cols <- sf::sf.colors(n = length(levels(x$geo$cluster)), categorical = TRUE)
-#   legend_icon <- c("***", "**", "*", ".")
-#   plot(map, ...)
-#   legend("bottomleft", legend = levels(x$geo$cluster),
-#          col = cols, pch = 20, title = "Cluster color", ncol = 4)
-#   legend("bottomright", legend = c("***", "**", "*", "."),
-#          col = cols[1:4], pch = 20, title = "checks")
-# }
-
 #' plot stclust data
 #'
 #' @export
 #' @param x `stclust` 関数の結果オブジェクトを指定します。
+#' @param bgmap 背景用の地図を sf クラスのデータで指定します。
 #' @param ... `plot` 関数で指定できる引数を指定します。
-plot.stclust <- function(x, ...) {
-  plot(x$geo, ...)
+plot.stclust <- function(x, bgmap = NULL, ...) {
+  map <- if (!is.null(bgmap)) {
+    rbind(x$geo, sf::st_sf(cluster = NA, sp_check = NA, ts_check = NA, geometry = sf::st_geometry(bgmap)))
+  } else {
+    x$geo
+  }
+  ncol_num <- if (length(levels(x$geo$cluster)) + 4 > 12) {
+    3
+  } else {
+    floor((length(levels(x$geo$cluster)) + 4) / 4)
+  }
+  cols <- sf::sf.colors(n = max(4, length(levels(x$geo$cluster))), categorical = TRUE)
+  legend_icon <- c("***", "**", "*", ".")
+  plot(map, ...)
+  legend("bottomright",
+         legend = c(paste("Sign:", legend_icon),
+                    paste("Cluster:", levels(x$geo$cluster))),
+         col = c(cols[1:4], cols),
+         pch = 15,
+         title = "contour color",
+         ncol = ncol_num)
 }
+# plot.stclust <- function(x, ...) {
+#   plot(x$geo, ...)
+# }
 
 
 #' plot cluster dendrogram

@@ -44,7 +44,6 @@ githubからインストールを実行してください。
   print(clust)
 #+end_src
 
-#+RESULTS:
 #+begin_src R
 ===== Start ST-DBSCAN method =====
 
@@ -83,7 +82,6 @@ D (Δeps):
   print(clust)
 #+end_src
 
-#+RESULTS:
 #+begin_src R
 ===== Start ST-DBSCAN method =====
 
@@ -142,7 +140,7 @@ Rの *quakes* データセットを使ったST-DBSCANクラスタリングをテ
   print(clust)
 #+end_src
 
-#+RESULTS:
+
 #+begin_src R
 ===== Start ST-DBSCAN method =====
 
@@ -206,7 +204,7 @@ D (Δeps):
   print(clust)
 #+end_src
 
-#+RESULTS:
+
 #+begin_src R
 ===== Start ST-DBSCAN method =====
 
@@ -260,7 +258,7 @@ Can use the `cutclust` function to split it into `k` clusters
   cutclust(clust, k = 4)
 #+end_src
 
-#+RESULTS:
+
 #+begin_src R
 Simple feature collection with 121 features and 2 fields
 Geometry type: POINT
@@ -297,7 +295,7 @@ First 10 features:
 
 *** Creating Map Data with Adjacent Points
 
-デモデータとして、2019年度の九州地方の一部 (福岡県、佐賀県、長崎県、熊本県、大分県、宮崎県、鹿児島県) の光化学オキシダント濃度データ[fn:2] を改変して利用します。
+デモデータとして、2019年度の九州地方の一部 (福岡県、佐賀県、長崎県、熊本県、大分県、宮崎県、鹿児島県) の光化学オキシダント濃度データ[fn:2] と国土数値情報の地図データ[fn:3] を改変して利用しています。
 
 #+begin_src R
   library(stdbscan)
@@ -351,7 +349,7 @@ List of 2
                                        delta_eps = 20)))
 #+end_src
 
-#+RESULTS:
+
 #+begin_src none
 ===== Start ST-DBSCAN method =====
 
@@ -451,7 +449,7 @@ Completed.
                    )
 #+end_src
 
-#+RESULTS:
+
 #+begin_src none
 1. Check cluster agglomeration properties in geospatial areas.
 	Create neighbor list
@@ -489,11 +487,15 @@ Complete 2.
 Finally.
 #+end_src
 
+
+出力結果には、時系列類似性の評価 (~rsq~, ~rmse~)、空間的集塊性の評価 (~Joincount~, ~z_value~, モンテカルロシミュレーションの調整済みR^{2}値 ~adj_p_value~ ) がクラスター毎に計算されています。
+各値のチェック方法は ~spdep::joincount.multi~, ~spdep::joincount.mc~ などのヘルプ情報を参考にしてください。
+
+
 #+begin_src R
   print(valid)
 #+end_src
 
-#+RESULTS:
 #+begin_src R
 Display of time-series similarity and spatial agglomeration
   assessment in clustering results
@@ -544,26 +546,11 @@ First 10 features:
 #+end_src
 
 *** Plotting Verification Results
-検証結果をプロットします。
+検証結果をコンター図で出力します。
 
 #+name: code:plot-valid
 #+begin_src R :results file graphics :file "./inst/plot-valid.png" :width 800 :height 800 :exports both :res 120
-  library(ggplot2)
-  p1 <- ggplot() +
-    geom_sf(data = oxdata$geo$gov_map, fill = "white") +
-    geom_sf(data = valid$geo,
-            aes(fill = cluster)) +
-    geom_sf(data = sf::st_geometry(oxdata$geo$predict_map), fill = NA, shape = 1) +
-    coord_sf(xlim = c(128.5, 132), ylim = c(31, 34.5))
-  p2 <- ggplot() +
-    geom_sf(data = oxdata$geo$gov_map, fill = "white") +
-    geom_sf(data = tidyr::pivot_longer(subset(valid$geo, select = -cluster),
-                                       cols = -c(geometry)),
-            aes(fill = value)) +
-    geom_sf(data = sf::st_geometry(oxdata$geo$predict_map), fill = NA, shape = 1) +
-    facet_wrap(name ~ .) +
-    coord_sf(xlim = c(128.5, 132), ylim = c(31, 34.5))
-  gridExtra::grid.arrange(p1, p2, nrow = 2)
+  plot(valid)
 #+end_src
 
 #+name: fig:plot-valid
@@ -581,5 +568,7 @@ First 10 features:
 
 
 * Footnotes
+
+[fn:3] 「国土数値情報（行政区域データ）」（国土交通省）（https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-2025.html）を加工して作成
 [fn:2] 国立環境研究所 環境展望台 大気汚染常時監視データファイル: https://tenbou.nies.go.jp/download/, (2025-08-20アクセス).
 [fn:1] BIRANT, Derya; KUT, Alp. ST-DBSCAN: An algorithm for clustering spatial–temporal data. Data & knowledge engineering, 2007, 60.1: 208-221. https://www.sciencedirect.com/science/article/pii/S0169023X06000218
