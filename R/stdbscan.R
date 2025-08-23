@@ -116,6 +116,12 @@ stdbscan <- function(x,
   }
   if (any(class(x) == "sf")) {
     x <- sf::st_geometry(x)
+    if (!any(class(x) %in% "sfc_POINT")) {
+      message("`stdbscan` requires POINT class data.")
+      message("Apply the `sf::st_controid` function and use the position of the polygon's center of gravity.")
+      archive_x <- x
+      x <- sf::st_centroid(x)
+    }
   }
   
   message("===== Start ST-DBSCAN method =====")
@@ -173,7 +179,9 @@ stdbscan <- function(x,
   if (neighbortype == "random") {
     time <- sort(unique(time))
   }
-  
+  if (exists("archive_x")) {
+    x <- archive_x
+  }
   ret_table <- if (any(class(x) == "matrix")) {
     data.frame(id = seq(1, nrow(x), by = 1),
                x = x[, 1],
