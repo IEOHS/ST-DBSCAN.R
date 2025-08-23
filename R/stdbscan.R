@@ -114,11 +114,11 @@ stdbscan <- function(x,
       x$time
     } 
   }
-  if (any(class(x) == "sf")) {
+  if (any(class(x) %in% c("sf", "sfc"))) {
     x <- sf::st_geometry(x)
     if (!any(class(x) %in% "sfc_POINT")) {
-      message("`stdbscan` requires POINT class data.")
-      message("Apply the `sf::st_controid` function and use the position of the polygon's center of gravity.")
+      warning("`stdbscan` requires POINT class data.")
+      warning("Apply the `sf::st_controid` function and use the position of the polygon's center of gravity.")
       archive_x <- x
       x <- sf::st_centroid(x)
     }
