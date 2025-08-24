@@ -3,8 +3,52 @@
 
 ## usethis namespace: start
 #' @import sf
+#' @import ggplot2
+#' @importFrom tidyr pivot_longer
 ## usethis namespace: end
 NULL
+
+#' plot for time-series data about sparseDFM model, and check models.
+#'
+#' @export
+#' @param x stclust クラスのデータオブジェクトを指定します。
+#' @param time_label 時系列情報を指定します。
+#' @param ... geom_path で指定できる引数値を指定します。
+validPlot <- function(x, time_label = seq(1, ncol(x$data)), ...) {
+  p1 <- spClustPlot(x, ...)
+  p2 <- tsFactorPlot(x, time_label)
+  gridExtra::grid.arrange(p1, p2, ncol = 2, widths = c(1, 1.3))
+}
+
+spClustPlot <- function(x, ...) {
+  p1 <- ggplot(subset(x$geo, select = cluster)) +
+    geom_sf(aes(fill = cluster, col = cluster), ...)
+  p2 <- tidyr::pivot_longer(subset(x$geo, select = -cluster),
+                            cols = -geometry) |>
+    ggplot() +
+    geom_sf(aes(fill = value, col = value)) +
+    facet_wrap(name ~ ., ncol = 1)
+  gridExtra::grid.arrange(p1, p2, ncol = 1, heights = c(1, 2))
+}
+
+tsFactorPlot <- function(x, time_label = seq(1, ncol(x$data)), ...) {
+  force(time_label)
+  ptable <- do.call(rbind, lapply(x$ts_model, function(m) {
+    obs <- scale(m$ts_model$data$X)
+    pred <- scale(m$ts_model$state$factors)
+    tb <- tidyr::pivot_longer(as.data.frame(cbind(date = time_label,
+                                                  pred, obs)),
+                              cols = -date)
+    tb$col <- ifelse(grepl("pred|F\\d", tb$name), "black", "gray")
+    tb$cluster <- m$cluster
+    tb
+  }))
+
+  ggplot(ptable) +
+    geom_path(aes(x = date, y = value, group = name), col = ptable$col, ...) +
+    facet_grid(cluster ~ .) +
+    labs(y = "normalized value (per cluster)", x = "Elapsed Time")
+}
 
 
 #' plot stclust data
