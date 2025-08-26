@@ -46,8 +46,10 @@ geostclust <- function(x = double(),
                        times,
                        cuts = c(4, 8, 16, 32), 
                        method = c("ward", "kmeans", "kshape", "dtw", "hstdbscan", "others"),
+                       #na_value = mean(x, na.rm = TRUE),
                        ...) {
   
+  #force(na_value)
   method <- match.arg(method)
   if (!any(class(geo) %in% c("sf", "sfc"))) {
     stop("`geo` object must be 'sf' or 'sfc' class.")
@@ -55,6 +57,7 @@ geostclust <- function(x = double(),
   geo <- sf::st_geometry(geo)
   if (method != "hstdbscan") {
     d <- matrix(x, nrow = length(geo), ncol = length(times))
+    #d <- ifelse(is.na(d), na_value, d)
   }
   cluster_label <- paste(method, cuts, "cluster", sep = "_")
   

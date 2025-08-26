@@ -441,12 +441,12 @@ Completed.
 
 
 #+begin_src R :async yes 
-  valid <- stclust(x = oxdata$data[, 720:767],
-                   cluster = clust$cluster$hstdbscan_8_cluster,
-                   geo = oxmap, ## 隣接点を作成したマップを利用
-                   neighbor_method = spdep::poly2nb, ## 隣接情報の作成関数
-                   neighbor_option = list() ## 引数値の指定
-                   )
+  valid <- validstclust(x = oxdata$data[, 720:767],
+                        cluster = clust$cluster$hstdbscan_8_cluster,
+                        geo = oxmap, ## 隣接点を作成したマップを利用
+                        neighbor_method = spdep::poly2nb, ## 隣接情報の作成関数
+                        neighbor_option = list() ## 引数値の指定
+                        )
 #+end_src
 
 
@@ -558,6 +558,10 @@ First 10 features:
 #+RESULTS: code:plot-valid
 [[file:./inst/plot-valid.png]]
 
+
+** Other clustering method
+
+~geostclust~ 関数にはST-DBSCAN以外に ~ward法~, ~k-means法~, ~k-shape法~, ~dtw法~ で計算を行うことができます。
 
 ** help
 その他使い方に関しては、関数のヘルプを参照してください。

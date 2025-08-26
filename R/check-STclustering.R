@@ -126,17 +126,17 @@ createBufferMap <- function(geo = sf::st_sfc(),
 #'                   vals = list(list(D = D,
 #'                                    delta_eps = 20)),
 #'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
-#' stclust(x = matrix(D, ncol = length(t)), cluster = cutclust(clust, 5)$cluster, geo = clust$results$geo)
-stclust <- function(x = NULL,
-                    check_mode = c("spatial", "temporal"),
-                    cc = checkCond(), 
-                    cluster = NULL,
-                    geo = NULL,
-                    neighbor_method = spdep::knearneigh,
-                    neighbor_option = list(k = 4),
-                    ts_num_factor = 1L,
-                    set_crs = 6670,
-                    nsim = 999) {
+#' validstclust(x = matrix(D, ncol = length(t)), cluster = cutclust(clust, 5)$cluster, geo = clust$results$geo)
+validstclust <- function(x = NULL,
+                         check_mode = c("spatial", "temporal"),
+                         cc = checkCond(), 
+                         cluster = NULL,
+                         geo = NULL,
+                         neighbor_method = spdep::knearneigh,
+                         neighbor_option = list(k = 4),
+                         ts_num_factor = 1L,
+                         set_crs = 6670,
+                         nsim = 999) {
   
   ## checkmode
   ## check_mode <- c("spatial", "temporal")
@@ -320,10 +320,11 @@ stclust <- function(x = NULL,
         parse(text = f) |> eval()
       }))
       ts_check <- apply(ts_check, 1, function(r) {
-        if (sum(r) == 0) {
+        sum_r <- sum(r, na.rm = TRUE)
+        if (sum_r == 0) {
           return(".")
         } else {
-          strrep("*", sum(r))
+          strrep("*", sum_r)
         }
       })
     } else {
@@ -334,10 +335,11 @@ stclust <- function(x = NULL,
         parse(text = f) |> eval()
       }))
       sp_check <- apply(sp_check, 1, function(r) {
-        if (sum(r) == 0) {
+        sum_r <- sum(r, na.rm = TRUE)
+        if (sum_r == 0) {
           return(".")
         } else {
-          strrep("*", sum(r))
+          strrep("*", sum_r)
         }
       })
     } else {
