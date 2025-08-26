@@ -321,7 +321,9 @@ validstclust <- function(x = NULL,
       }))
       ts_check <- apply(ts_check, 1, function(r) {
         sum_r <- sum(r, na.rm = TRUE)
-        if (sum_r == 0) {
+        if (all(is.na(r))) {
+          return(NA)
+        } else if (sum_r == 0) {
           return(".")
         } else {
           strrep("*", sum_r)
@@ -332,11 +334,14 @@ validstclust <- function(x = NULL,
     }
     if (any(check_mode == "spatial")) {
       sp_check <- do.call(data.frame, lapply(cc$sp, function(f) {
-        parse(text = f) |> eval()
+        spc <- parse(text = f) |> eval()
+        ifelse(Joincount <= 0 & is.nan(z_value), NA, spc)
       }))
       sp_check <- apply(sp_check, 1, function(r) {
         sum_r <- sum(r, na.rm = TRUE)
-        if (sum_r == 0) {
+        if (all(is.na(r))) {
+          return(NA)
+        } else if (sum_r == 0) {
           return(".")
         } else {
           strrep("*", sum_r)
