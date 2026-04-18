@@ -20,15 +20,17 @@ cutclust(x, k, ...)
 \code{hstdbscan} 関数で計算したクラスターの結果を分割します。
 }
 \examples{
-x <- seq(130, 140, by = 1)
-y <- seq(30, 40, by = 1)
-t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
-
-D <- abs(runif(nrow(geo) * length(t))) * 100
-clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-                  vals = list(list(D = D,
-                                   delta_eps = 20)),
-                  metric = "geo", neighbortype = "spatial", dbscantype = "grid")
+eps1 <- 144 ## km
+eps2 <- 3600 * 6
+time <- NULL
+minPts <- 4
+FUN <- mean
+time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+x <- sf::st_as_sf(expand.grid(seq(130, 140, by = 1), seq(30, 40, by = 1)),
+                  coords = c("Var1", "Var2"), crs = 4326) |> sf::st_geometry()
+vals <- setVals("test1", rnorm(length(x) * length(time), mean = 10, sd = 1), 0.5,
+                "test2", matrix(rnorm(length(x) * length(time), mean = 100, sd = 10), ncol = length(time)), 5)
+clust <- hstdbscan(x = x, time = time, eps1 = eps1, eps2 = eps2, minPts = 4,
+                   vals = vals, neighbortype = "spatial")
 cutclust(clust, 4)
 }

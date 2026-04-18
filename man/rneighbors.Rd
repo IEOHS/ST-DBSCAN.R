@@ -4,31 +4,37 @@
 \alias{rneighbors}
 \title{retrive neighbors function.}
 \usage{
-rneighbors(
-  nblist,
-  vals,
-  mean_val = list(),
-  label = NULL,
-  mode = "step",
-  FUN = mean
-)
+rneighbors(vals, nb, cluster_pos = NULL, FUN)
 }
 \arguments{
-\item{nblist}{\code{stnb} 関数の出力結果を指定します。}
-
 \item{vals}{\code{list(list(D = ..., delta_eps))} のように指定します。}
 
-\item{mean_val}{平均値または平均値を算出するための数値ベクトルを指定します。}
+\item{nb}{隣接点を vector 形式で指定します。}
 
-\item{label}{クラスタリングのラベルを指定します。NULLの場合は隣接点がそのまま出力され、labelベクトルを指定すると、"Noise" となっている番号をピックアップして出力します。}
-
-\item{mode}{\itemize{
-\item "all": 全ての計算を一括で行います。各値と平均値との差をベクトル演算するため、計算回数は少ない反面クラスター平均からの距離 (Δeps) は不正確なります。平均値が変わらない場合に利用可能です。
-\item "step": 逐次計算を実行し、各値と平均値との差の計算を毎回実行し、クラスター平均からの距離 (Δeps) に正確に返します。
-}}
+\item{cluster_pos}{valsにおける同一クラスターへのインデックスを指定します。}
 
 \item{FUN}{集計用の計算関数を指定します。}
 }
 \description{
 隣接点を探します。
 }
+\note{
+eps1 <- 144
+eps2 <- 3600 * 6
+minPts <- 5
+vals <- setVals("test1", rnorm(100), 0.2,
+"test2", matrix(rnorm(100), ncol = 10), 0.2)
+\subsection{ramdom point and non temporal data.}{
+
+x <- sf::st_as_sf(data.frame(lon = runif(100, min = 130, max = 140),
+lat = runif(100, min = 30, max = 40)),
+coords = c("lon", "lat"), crs = 4326) |>
+sf::st_geometry()
+nb <- stnb(x = x, eps1 = eps1/1000, eps2 = eps2, time = NULL, neighbortype = "random")
+message("neighbors: ")
+nb$id[\link{1}][\link{1}]
+message("cluster neighbors: ")
+rneighbors(vals = vals, nb = nb$id[\link{1}][\link{1}], cluster_pos = 1, FUN = mean)
+}
+}
+\keyword{internal}

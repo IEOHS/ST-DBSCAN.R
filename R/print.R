@@ -81,5 +81,5 @@ stdbscan_call <- function(x) {
     nn <- length(noise_num)
   }  
   message("The clustering contains ", cn, " cluster(s) and ", nn, " noise points.")
-  message("D (Δeps): ", paste("\n  ", names(x$delta_eps), paste0("(", x$delta_eps, ")"), collapse = ", "))
+  for (v in x$vals) {print(v);message("")}
 }

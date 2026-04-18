@@ -2,7 +2,7 @@
 % Please edit documentation in R/stdbscan.R
 \name{stdbscan}
 \alias{stdbscan}
-\title{calc ST-DBSCAN clustering.}
+\title{calc neighbors and ST-DBSCAN.}
 \usage{
 stdbscan(
   x,
@@ -10,109 +10,125 @@ stdbscan(
   eps1 = double(),
   eps2 = double(),
   minPts = integer(),
-  vals = list(list(D = double(), delta_eps = double())),
-  metric = c("euclidean", "geo"),
-  neighbortype = c("spatial", "random"),
-  dbscantype = c("grid", "default"),
+  vals = setVals(),
+  neighbortype = "random",
+  dbscantype = NULL,
   FUN = mean,
-  na_value = -9999
+  na_value = -9999,
+  nb_fun = "dist",
+  k = integer(),
+  ...
 )
 }
 \arguments{
-\item{x}{matrix\link{, c(x, y)}, data.frame(x, y), sf, sfc を指定します。
-matrixの場合は、2列の行列を指定し、1列目にはx軸 (long), 2列目にはy軸 (lat) の情報を指定します。
-data.frameの場合は、\code{x} 列にx軸, \code{y} 列にy軸の情報を指定します。
-sf及びsfcの場合はそのまま指定できますが、sfデータにgeometryのみが利用されます。
-neighbortype = "random" の場合、'x' に 時間情報を含めることができます。その場合、列名は 'time' としてください。}
+\item{x}{位置情報データをsf, sfc, matrix, data.frameのい何れかで指定します。
+matrix, data.frame で指定する場合、経度をx, 緯度をyとして列名 (colnames, names) 、データを作成してください。
+また、matrix, data.frameで指定した場合は、内部でsfcクラスのデータに変換されます。}
 
-\item{time}{時間軸情報をベクトルで指定します。数値、POSIXct等、任意のデータ型を指定します。}
+\item{time}{時間情報を指定します。
+\code{neighbortype = "random"} の場合、x (位置情報) の数とtimeの長さが一致している必要があります。 (\code{length(x) == length(time)})
+\code{neighbortype = "spatial"} の場合、\code{length(x) * length(time) } がデータのサイズになります。}
 
-\item{eps1}{空間的な距離の閾値を指定します。これは \code{dbscan::dbscan} 関数で指定する \code{eps} 引数の値に該当します。}
+\item{eps1}{空間近傍地点のしきい値を距離 (km) で指定します。}
 
-\item{eps2}{時間的な距離の閾値をしています。
-\code{time} 引数を数値で指定した場合は、隣接時間となる値を数値で指定し、 \code{POSIXct} 形式で指定した場合は秒 (sec) で指定します。}
+\item{eps2}{時間近傍地点のしきい値を数値で指定します。
+time変数に数値を指定指定した場合は、eps2も数値で指定します。
+time変数をDate型で指定した場合は、日差 (day) として指定します。
+time変数をPOSIXct型で指定した場合は、秒差 (sec) として指定します。}
 
-\item{minPts}{クラスターと認識する最低の隣接点数を整数で指定します。}
+\item{minPts}{クラスター判定するための最小近傍地点数を整数で指定します。}
 
-\item{vals}{空間・時間軸に該当するデータを \code{list} 形式でしています。また、このデータのクラスターを判別するための閾値 (Δeps) も指定します。
-データは次の例のように複数指定することができます
-list(list(D = vector(), delta_eps = double()), list(D = vector(), delta_eps = double()), ...)}
+\item{vals}{クラスタリングする属性値を指定します。
+ここでは複数属性のデータを指定することができ、\code{setVals("data-name", valus(vector), Δeps)} として指定することが出来ます。
+指定の方法の詳細は \code{setOneVals()} 関数を参照してください。}
 
-\item{metric}{空間的距離を算出するための方法を指定します。
+\item{neighbortype}{空間隣接地点の計算方法を指定します。
+"random" と指定した場合、位置情報がランダムであるデータの計算を実施します。
+このとき、位置情報 (x) の地点数と 属性値 (vals) のデータ数が同数である必要があります。
+timeを指定する場合は、timeの長さも位置情報の地点数と同数である必要があります。
+(length(x) == length(time) == length(vals[\link{1}]$v))
+"spatial" と指定した場合、位置情報 (x) の地点数と時間情報 (time) の数を乗じた値が属性値のデータ数と等しくなる必要がります。
+(length(x) * length(time) == length(vals[\link{1}]$v))。}
+
+\item{dbscantype}{空間隣接地点数の補足設定を行います。
+WRFに代表される気象シミュレーションのように、領域を格子状に分割して計算された (netCDF) データでは、地点の位置情報は同じで時間情報だけが異なるデータ構造になっています。
+このようなデータでは一定以上の隣接地点数を見込むことができるため、必ずクラスターが作成されるという弊害が存在します。
+そのため、 \code{dbscantype = "grid"} と指定した場合に限り、クラスターの作成条件を本来のST-DBSCANより厳しくします。
+具体的に、ST-DBSCANのアルゴリズムでは 隣接地点数が minPts 以上である場合に無条件でクラスター化しますが、このオプションを指定することで属性値の計算結果を判定条件とするようにします。
+特に指定がない場合、\code{neighbortype == spatial} の場合、自動で \code{dbscantype = "grid"} として計算されます。}
+
+\item{FUN}{同一のクラスターを判別するための方法を定義します。
+文献では、クラスターの属性値平均値との差 (Δeps) を確認し、新たな地点を追加しています。標準の設定ではこの内容に従い、 \code{kean} 関数をが指定されています。
+クラスターへの追加方法を変更する場合 (例えば中央値との差を見るようにする場合) は、 \code{FUN = mesian} のように指定します。}
+
+\item{na_value}{属性情報 vals にNA値が含まれている場合、そのままではクラスタリングはエラーになります。
+そのため、一時的に属性情報を na_valueで上書きしてクラスタリングの計算を行います。
+この値は属性情報とは関係がない値にすることが望ましく、例えば、属性情報がプラスの値であれば na_valueは大きなマイナスの値にすると Nose として判定され舞うs。
+標準では \code{na_value = -9999} に指定されています。}
+
+\item{nb_fun}{隣接地点の計算方法を指定します。
 \itemize{
-\item "euclidean": ユークリッド距離 (\code{sqrt((x1 - x1) ^ 2 + (y1 - y1) ^ 2 )}) で距離が計算されます。
-\item "geo": 地理空間上の座標 (long, lat) に基づき地点間の距離が計算されます。計算には `spdep::dnearneigh' が利用されます。
+\item dist: 一定の距離 (km) に基づく隣接点を指定します。
+\item knn: 近い方から k 地点を隣接点とします。別途、 \verb{k = } 引数で条件を指定して下さい。
+\item poly: ポリゴン同士が接している場合に隣接点とみなします。この場合、 x 引数には sfc_MULTIPOLYGON 属性のデータを指定する必要があります。
+\item euclidean: ユークリッド距離による座標間の直接的な距離を元に隣接点を計算します。
 }}
 
-\item{neighbortype}{隣接点が空間的に同一か、完全にランダムな配置であるか指定します。
-\itemize{
-\item "spatial": netCDFデータや定点データのように、位置が時間に応じて変わらないデータを使用する場合に指定します。
-\item "random": 地震発生源のような、時間と空間上でランダムなデータを利用する場合に指定します。
-}}
+\item{k}{\code{nb_fun = "knn"} の場合に指定します。整数値で近傍点数を指定して下さい。}
 
-\item{dbscantype}{クラスターの判定の際、netCDF形式で配布されている気象データのようなグリッドデータでは、常に一定数の隣接点が存在します。
-このような場合、ST-DBSCANのもともとの計算アルゴリズムでは必ずクラスターが生成されるため、意図しない計算結果となることが想定されます。
-\code{dbscantype} 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が \code{minPts} 以上であればクラスターと認識する計算が実行されます。}
-
-\item{FUN}{集計用の計算関数を指定します。}
-
-\item{na_value}{元データ (D) にNA値が含まれている場合に代替する値を指定します。
-なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
-Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。}
-}
-\value{
-\itemize{
-\item cluster: valsに指定したデータ数と対応するクラスタリングの結果ラベルが含まれています。
-\item eps1: \code{eps1} 引数の値
-\item eps2: \code{eps2} 引数の値
-\item minPts: \code{minPts} 引数の値
-\item metric: 距離の計算、クラスタリングの条件が含まれています。
-\itemize{
-\item metric: \code{metric} 引数の値
-\item neighbortype: \code{neighbortype} 引数の値
-\item dbscantype: \code{dbscantype} 引数の値
-}
-\item neighborlist: データの隣接点リスト (\code{nb} class) が含まれています。
-\item delta_eps: \code{vals} 引数の \code{delta_eps} で指定した値
-\item results: クラスタリングの結果が位置情報、時間情報、クラスタリングラベルに分かれて格納されています。
-\itemize{
-\item geo: 位置情報
-\item time: 時間情報
-\item value: 位置情報に該当するid, 時間情報, vals引数で指定した各データ値, クラスターラベルがデータフレーム形式で格納されています。\code{neighbortype = "spatial"} の場合は、時間毎に list 化されて格納されています。
-}
-}
+\item{...}{隣接点の計算オプションを指定します。以下の関数で使用できる引数オプションを指定できます。
+spdep::dnearneigh, spdep::knearneigh, spdep::poly2nb, dbscan::frNN}
 }
 \description{
-ST-DBSCAN法でクラスタリングを行います。
-article{birant2007st,
-title={ST-DBSCAN: An algorithm for clustering spatial--temporal data},
-author={Birant, Derya and Kut, Alp},
-journal={Data \& knowledge engineering},
-volume={60},
-number={1},
-pages={208--221},
-year={2007},
-publisher={Elsevier}
+calc neighbors and ST-DBSCAN.
 }
+\note{
+eps1 <- 144 ## km
+eps2 <- 3600 * 6
+time <- NULL
+minPts <- 20
+FUN <- mean
+num <- 1000
+\subsection{only geospatial data (dbscan).}{
+
+x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+lat = runif(num, min = 30, max = 40)),
+coords = c("lon", "lat"), crs = 4326) |>
+sf::st_geometry()
+clust <- stdbscan(x = x, eps1 = eps1, minPts = minPts)
 }
-\examples{
-x <- seq(130, 140, by = 1)
-y <- seq(30, 40, by = 1)
-t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
 
-## for ramdom
-D <- abs(runif(nrow(geo))) * 100
-clust <- stdbscan(x = cbind(geo, time = rep(t, nrow(geo))[1:nrow(geo)]),
-                  eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-                  vals = list(list(D = D,
-                                   delta_eps = 20)),
-                  metric = "geo", neighbortype = "random", dbscantype = "default")
+\subsection{ramdom point and non temporal data.}{
 
-## for spatial
-D <- abs(runif(nrow(geo) * length(t))) * 100
-clust <- stdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-                  vals = list(list(D = D,
-                                   delta_eps = 20)),
-                  metric = "geo", neighbortype = "spatial", dbscantype = "grid")
+vals <- setVals("test1", rnorm(num, mean = 10, sd = 1), 0.05,
+"test2", matrix(rnorm(num, mean = 100, sd = 10), ncol = 10), 5)
+x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+lat = runif(num, min = 30, max = 40)),
+coords = c("lon", "lat"), crs = 4326) |>
+sf::st_geometry()
+clust <- stdbscan(x = x, eps1 = eps1, minPts = minPts,
+vals = vals, neighbortype = "random")random point and temporal data.
+
+time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+vals <- setVals("test1", rnorm(num * length(time), mean = 10, sd = 1), 0.5,
+"test2", matrix(rnorm(num * length(time), mean = 100, sd = 10), ncol = 10), 5)
+x <- sf::st_as_sf(data.frame(lon = runif(num * length(time), min = 130, max = 140),
+lat = runif(num * length(time), min = 30, max = 40)),
+coords = c("lon", "lat"), crs = 4326) |>
+sf::st_geometry()
+clust <- stdbscan(x = x, time = rep(time, each = num), eps1 = eps1, eps2 = eps2, minPts = minPts,
+vals = vals, neighbortype = "random")
+}
+
+\subsection{grid-base spatial point and temporal data.}{
+
+time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+vals <- setVals("test1", rnorm(length(x) * length(time), mean = 10, sd = 1), 0.5,
+"test2", matrix(rnorm(length(x) * length(time), mean = 100, sd = 10), ncol = length(time)), 5)
+x <- sf::st_as_sf(expand.grid(seq(130, 140, by = 1), seq(30, 40, by = 1)),
+coords = c("Var1", "Var2"), crs = 4326) |>
+sf::st_geometry()
+clust <- stdbscan(x = x, time = time, eps1 = eps1, eps2 = eps2, minPts = 4,
+vals = vals, neighbortype = "spatial")
+}
 }

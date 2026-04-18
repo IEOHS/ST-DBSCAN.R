@@ -14,7 +14,8 @@ rsq(x = double(), y = double())
 \description{
 R ^ 2値を計算します。
 }
-\examples{
+\note{
 rsq(x = 1:10,
-   y = rnorm(10))
+y = rnorm(10))
 }
+\keyword{internal}

@@ -22,7 +22,7 @@ validstclust(
 
 \item{check_mode}{クラスタリングの精度検証 について、時系列 ("temporal"), 空間 ("spatial"), またはこれらの両方を指定します。}
 
-\item{cc}{\code{checkCond} 関数をで、時系列及び空間データの精度確認基準を指定します。}
+\item{cc}{\code{checkCond} 関数で、時系列及び空間データの精度確認基準を指定します。}
 
 \item{cluster}{クラスタリングの結果ラベルを指定します。内部処理ではfactor型に変換されます。}
 
@@ -60,16 +60,14 @@ validstclust(
 \description{
 hstdbscanなどの結果について、時系列性と空間的集塊性の評価を行います。
 }
-\examples{
+\note{
 x <- seq(130, 140, by = 1)
 y <- seq(30, 40, by = 1)
 t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
-
-D <- abs(runif(nrow(geo) * length(t))) * 100
+geo <- sf::st_geometry(sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326))
+vals <- setVals("test1", rnorm(length(geo) * length(t), mean = 10, sd = 1), 0.5,
+"test2", matrix(rnorm(length(geo) * length(t), mean = 100, sd = 10), ncol = length(t)), 5)
 clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-                  vals = list(list(D = D,
-                                   delta_eps = 20)),
-                  metric = "geo", neighbortype = "spatial", dbscantype = "grid")
-validstclust(x = matrix(D, ncol = length(t)), cluster = cutclust(clust, 5)$cluster, geo = clust$results$geo)
+vals = vals, neighbortype = "spatial")
+validstclust(x = vals[\link{2}]$v, cluster = cutclust(clust, 5)$cluster, geo = clust$results$geo)
 }

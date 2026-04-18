@@ -31,25 +31,21 @@ NULL
 #' x <- seq(130, 140, by = 1)
 #' y <- seq(30, 40, by = 1)
 #' t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-#' geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
-#' D <- abs(runif(nrow(geo) * length(t))) * 100
-#' D <- Reduce(cbind, split(D, do.call(c, Map(rep, t, nrow(geo)))), init = NULL)
-#' clust <- geostclust(x = D, geo = geo, times = t, method = "ward")
-#' clust <- geostclust(x = D, geo = geo, times = t, method = "kmeans")
-#' clust <- geostclust(x = D, geo = geo, times = t, method = "kshape")
-#' clust <- geostclust(x = D, geo = geo, times = t, method = "dtw")
-#' clust <- geostclust(geo = geo, times = t, method = "hstdbscan", eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-#'                     vals = list(list(D = D,
-#'                                      delta_eps = 20)))
+#' geo <- sf::st_geometry(sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326))
+#' D <- abs(runif(length(geo) * length(t))) * 100
+#' (clust <- geostclust(x = D, geo = geo, times = t, method = "ward"))
+#' (clust <- geostclust(x = D, geo = geo, times = t, method = "kmeans"))
+#' (clust <- geostclust(x = D, geo = geo, times = t, method = "kshape"))
+#' (clust <- geostclust(x = D, geo = geo, times = t, method = "dtw"))
+#' (clust <- geostclust(geo = geo, times = t, method = "hstdbscan", eps1 = 144, eps2 = 3600 * 6, minPts = 6,
+#'                      vals = setVals("test1", rnorm(length(geo) * length(t), mean = 10, sd = 1), 0.5,
+#'                                     "test2", matrix(rnorm(length(geo) * length(t), mean = 100, sd = 10), ncol = length(time)), 5)))
 geostclust <- function(x = double(),
                        geo,
                        times,
                        cuts = c(4, 8, 16, 32), 
                        method = c("ward", "kmeans", "kshape", "dtw", "hstdbscan", "others"),
-                       #na_value = mean(x, na.rm = TRUE),
                        ...) {
-  
-  #force(na_value)
   method <- match.arg(method)
   if (!any(class(geo) %in% c("sf", "sfc"))) {
     stop("`geo` object must be 'sf' or 'sfc' class.")
@@ -89,7 +85,7 @@ geostclust <- function(x = double(),
     clust <- list(label = Map(assign, cluster_label, Map(cutree, list(model), k = cuts)),
                   model = model)
   } else if (method == "hstdbscan") {
-    model <- hstdbscan(x = geo, time = times, metric = "geo", neighbortype = "spatial", dbscantype = "grid", ...)
+    model <- hstdbscan(x = geo, time = times, neighbortype = "spatial", dbscantype = "grid", ...)
     clust <- list(label = Map(assign,
                               cluster_label,
                               lapply(cuts, function(n) {

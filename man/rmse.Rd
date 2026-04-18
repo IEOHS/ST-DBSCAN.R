@@ -14,7 +14,8 @@ rmse(x = double(), y = double())
 \description{
 精度評価用に観測値と予測値との比較を行います。
 }
-\examples{
+\note{
 rmse(x = 1:10,
-     y = rnorm(10))
+y = rnorm(10))
 }
+\keyword{internal}

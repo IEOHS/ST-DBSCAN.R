@@ -5,34 +5,27 @@
 \title{create neighbor list}
 \usage{
 stnb(
-  x = double(),
-  y = double(),
+  x = NULL,
   time = NULL,
   eps0 = 0,
   eps1 = NULL,
   eps2 = NULL,
-  method = c("geo", "euclidean"),
-  neighbortype = c("spatial", "random")
+  k = NULL,
+  neighbortype = c("random", "spatial"),
+  fun = "dist",
+  ...
 )
 }
 \arguments{
-\item{x}{double(), sf, sfc}
-
-\item{y}{double()}
+\item{x}{\code{sfc} クラスの位置情報を指定します。}
 
 \item{time}{numeric, date, ISOdate, POSIXct}
 
-\item{eps0}{dist x and y (lower)}
+\item{eps0}{dist x and y (lower) \link{km}}
 
-\item{eps1}{dist x and y (uppwer)}
+\item{eps1}{dist x and y (uppwer) \link{km}}
 
 \item{eps2}{dist time. set seconds.}
-
-\item{method}{use spdep::dnearneigh.
-\itemize{
-\item "geo": calc for geographics.
-\item "euclidean": calc for euclidean area.
-}}
 
 \item{neighbortype}{\itemize{
 \item "spatial": For Grid data. Adjust nb size before calc.
@@ -42,3 +35,33 @@ stnb(
 \description{
 隣接点行列を作成します。
 }
+\examples{
+eps1 <- 144
+minPts <- 5
+num <- 1000
+vals <- setVals("test1", rnorm(num), 0.2,
+                "test2", matrix(rnorm(num), ncol = 10), 0.2)
+## ramdom pointdata.
+x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+                             lat = runif(num, min = 30, max = 40)),
+                  coords = c("lon", "lat"), crs = 4326) |>
+  sf::st_geometry()
+(nb <- stnb(x = x, eps1 = eps1, time = NULL, neighbortype = "random"))
+eps2 <- 3600 * 3
+t <- seq(as.POSIXct("2020-01-01 03:00:00"), as.POSIXct("2020-01-01 12:00:00"), by = "3 hour")
+vals <- setVals("test1", rnorm(num * length(t)), 0.2,
+                "test2", matrix(rnorm(num * length(t)), ncol = 10), 0.2)
+x <- sf::st_as_sf(data.frame(lon = runif(num * length(t), min = 130, max = 140),
+                             lat = runif(num * length(t), min = 30, max = 40)),
+                  coords = c("lon", "lat"), crs = 4326) |>
+  sf::st_geometry()
+(nb <- stnb(x = x, eps1 = eps1, eps2 = eps2, time = sample(t, num, replace = TRUE), neighbortype = "random"))
+
+## spatial point
+lon <- seq(130, 140, by = 1)
+lat <- seq(30, 40, by = 1)
+x <- sf::st_as_sf(expand.grid(lon, lat), coords = c("Var1", "Var2"), crs = 4326) |>
+  sf::st_geometry()
+(nb <- stnb(x = x, eps1 = eps1, eps2 = eps2, time = sample(t, length(x), replace = TRUE), neighbortype = "spatial"))
+}
+\keyword{internal}

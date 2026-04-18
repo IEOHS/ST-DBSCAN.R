@@ -7,214 +7,415 @@
 #' @importFrom sf st_geometry
 #' @importFrom sf st_sf
 #' @importFrom spdep dnearneigh
+#' @importFrom spdep knearneigh
+#' @importFrom spdep knn2nb
+#' @importFrom spdep poly2nb
+#' @importFrom spdep nbdists
+#' @importFrom dbscan dbscan
+#' @importFrom dbscan frNN
+#' @importFrom units set_units
 ## usethis namespace: end
 NULL
 
 
-#' calc ST-DBSCAN clustering.
+#' set stdbscan's value
 #'
-#' ST-DBSCAN法でクラスタリングを行います。
-#' article{birant2007st,
-#'  title={ST-DBSCAN: An algorithm for clustering spatial--temporal data},
-#'  author={Birant, Derya and Kut, Alp},
-#'  journal={Data \& knowledge engineering},
-#'  volume={60},
-#'  number={1},
-#'  pages={208--221},
-#'  year={2007},
-#'  publisher={Elsevier}
-#'}
+#' 時間・空間軸に該当するデータと、このデータのクラスターを判別するための閾値 (Δeps) を指定します。
 #'
 #' @export
-#' @param x matrix[, c(x, y)], data.frame(x, y), sf, sfc を指定します。
-#' matrixの場合は、2列の行列を指定し、1列目にはx軸 (long), 2列目にはy軸 (lat) の情報を指定します。
-#' data.frameの場合は、`x` 列にx軸, `y` 列にy軸の情報を指定します。
-#' sf及びsfcの場合はそのまま指定できますが、sfデータにgeometryのみが利用されます。
-#' neighbortype = "random" の場合、'x' に 時間情報を含めることができます。その場合、列名は 'time' としてください。
-#' @param time 時間軸情報をベクトルで指定します。数値、POSIXct等、任意のデータ型を指定します。
-#' @param eps1 空間的な距離の閾値を指定します。これは `dbscan::dbscan` 関数で指定する `eps` 引数の値に該当します。
-#' @param eps2 時間的な距離の閾値をしています。
-#' `time` 引数を数値で指定した場合は、隣接時間となる値を数値で指定し、 `POSIXct` 形式で指定した場合は秒 (sec) で指定します。
-#' @param minPts クラスターと認識する最低の隣接点数を整数で指定します。
-#' @param vals 空間・時間軸に該当するデータを `list` 形式でしています。また、このデータのクラスターを判別するための閾値 (Δeps) も指定します。
-#' データは次の例のように複数指定することができます
-#' list(list(D = vector(), delta_eps = double()), list(D = vector(), delta_eps = double()), ...)
-#' @param metric 空間的距離を算出するための方法を指定します。
-#' * "euclidean": ユークリッド距離 (`sqrt((x1 - x1) ^ 2 + (y1 - y1) ^ 2 )`) で距離が計算されます。
-#' * "geo": 地理空間上の座標 (long, lat) に基づき地点間の距離が計算されます。計算には `spdep::dnearneigh' が利用されます。
-#' @param neighbortype 隣接点が空間的に同一か、完全にランダムな配置であるか指定します。
-#' * "spatial": netCDFデータや定点データのように、位置が時間に応じて変わらないデータを使用する場合に指定します。
-#' * "random": 地震発生源のような、時間と空間上でランダムなデータを利用する場合に指定します。
-#' @param dbscantype クラスターの判定の際、netCDF形式で配布されている気象データのようなグリッドデータでは、常に一定数の隣接点が存在します。
-#' このような場合、ST-DBSCANのもともとの計算アルゴリズムでは必ずクラスターが生成されるため、意図しない計算結果となることが想定されます。
-#' `dbscantype` 引数では、"default" を指定すると従来のアルゴリズムを踏襲し、"grid" を指定すると隣接点と中心点との値差がΔepsとなる隣接点を抽出し、その数が `minPts` 以上であればクラスターと認識する計算が実行されます。
-#' @param FUN 集計用の計算関数を指定します。
-#' @param na_value 元データ (D) にNA値が含まれている場合に代替する値を指定します。
-#' なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
-#' Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。
+#' @param name データを判別するための名前を文字列で指定します。
+#' @param v 時間・空間軸のデータをベクトル形式で指定します。
+#' @param deps クラスターを判別するための閾値 (Δeps) を数値で指定します。
 #' @return
-#' * cluster: valsに指定したデータ数と対応するクラスタリングの結果ラベルが含まれています。
-#' * eps1: `eps1` 引数の値
-#' * eps2: `eps2` 引数の値
-#' * minPts: `minPts` 引数の値
-#' * metric: 距離の計算、クラスタリングの条件が含まれています。
-#'   - metric: `metric` 引数の値
-#'   - neighbortype: `neighbortype` 引数の値
-#'   - dbscantype: `dbscantype` 引数の値
-#' * neighborlist: データの隣接点リスト (`nb` class) が含まれています。
-#' * delta_eps: `vals` 引数の `delta_eps` で指定した値
-#' * results: クラスタリングの結果が位置情報、時間情報、クラスタリングラベルに分かれて格納されています。
-#'   - geo: 位置情報
-#'   - time: 時間情報
-#'   - value: 位置情報に該当するid, 時間情報, vals引数で指定した各データ値, クラスターラベルがデータフレーム形式で格納されています。`neighbortype = "spatial"` の場合は、時間毎に list 化されて格納されています。
+#' * v: 時間・空間軸のデータ
+#' * deps: クラスターを判別するための閾値 (Δeps) 
+#' attributes
+#' * name: データ名
 #' @examples
-#' x <- seq(130, 140, by = 1)
-#' y <- seq(30, 40, by = 1)
-#' t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-#' geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
-#' 
-#' ## for ramdom
-#' D <- abs(runif(nrow(geo))) * 100
-#' clust <- stdbscan(x = cbind(geo, time = rep(t, nrow(geo))[1:nrow(geo)]),
-#'                   eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-#'                   vals = list(list(D = D,
-#'                                    delta_eps = 20)),
-#'                   metric = "geo", neighbortype = "random", dbscantype = "default")
-#' 
-#' ## for spatial
-#' D <- abs(runif(nrow(geo) * length(t))) * 100
-#' clust <- stdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-#'                   vals = list(list(D = D,
-#'                                    delta_eps = 20)),
-#'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
-stdbscan <- function(x,
-                     time = NULL, 
-                     eps1 = double(),
-                     eps2 = double(),
-                     minPts = integer(),
-                     vals = list(list(D = double(),
-                                      delta_eps = double())),
-                     metric = c("euclidean", "geo"),
-                     neighbortype = c("spatial", "random"),
-                     dbscantype = c("grid", "default"),
-                     FUN = mean, na_value = -9999) {
-
-  stopifnot(!is.null(x))
-  stopifnot(length(eps1) > 0)
-  stopifnot(length(eps2) > 0)
-  stopifnot(length(minPts) > 0)
-  metric <- match.arg(metric)
-  neighbortype <- match.arg(neighbortype)
-  dbscantype <- match.arg(dbscantype)
-
-  if (neighbortype == "random" && is.null(time)) {
-    time <- if (any(class(x) == "matrix")) {
-      x[, "time"]
-    } else {
-      x$time
-    } 
+#' setOneVals(name = "ox", v = abs(runif(100)) * 100, deps = 2)
+setOneVals <- function(name = NULL,
+                       v = NULL,
+                       deps = NULL) {
+  stopifnot(any(is.vector(v), is.matrix(v)))
+  if (is.null(v)) {
+    v <- 0
   }
-  if (any(class(x) %in% c("sf", "sfc"))) {
-    x <- sf::st_geometry(x)
-    if (!any(class(x) %in% "sfc_POINT")) {
-      warning("`stdbscan` requires POINT class data.")
-      warning("Apply the `sf::st_controid` function and use the position of the polygon's center of gravity.")
-      archive_x <- x
-      x <- sf::st_centroid(x)
-    }
+  if (is.null(deps)) {
+    deps <- 1
   }
-  
-  message("===== Start ST-DBSCAN method =====")
-  message("\n1. Calculation Neighbor List")
-  nb <- try(if (any(class(x) == "matrix")) {
-    stnb(x = x[, "x"], y = x[, "y"], time = time, eps1 = eps1, eps2 = eps2,
-         method = metric, neighbortype = neighbortype)
-  } else if (any(class(x) == "data.frame")) {
-    stnb(x = x$x, y = x$y, time = time, eps1 = eps1, eps2 = eps2,
-         method = metric, neighbortype = neighbortype)
+  if (is.null(name)) {
+    name <- "stdbscan raw data"
+  }
+  return(list(structure(list(v = v,
+                             deps = deps),
+                        class = "raw_stdbscan",
+                        label = name)))
+}
+#' print raw stdbscan data
+#' @export
+#' @param x `setOneVals() ` 関数で作成したデータを指定します。
+#' @examples
+#' setOneVals(name = "ox", v = abs(runif(100)) * 100, deps = 2)
+print.raw_stdbscan <- function(x) {
+  message("===== stdbscan raw data =====")
+  message("name: ", attr(x, "label"), ", Δeps: ", x$deps, ", data: ")
+  str(x$v)
+}
+
+#' set some stdbscan's value
+#'
+#' 複数の時間・空間軸に該当するデータと、このデータのクラスターを判別するための閾値 (Δeps) を作成します。
+#'
+#' @export
+#' @param ... `setOneVlas()` で指定する name, v, deps 引数の値を順番に指定します。
+#' 複数のデータを指定する場合は、name, v, deps, name, v, deps, ...のように順番に指定します。
+#' @examples
+#' setVals("test1", rnorm(100), 2, "test2", matrix(rnorm(100), ncol = 10), 4.1)
+setVals <- function(...) {
+  x <- list(...)
+  if (length(x) == 0) {
+    return(NULL)
   } else {
-    stnb(x = x, time = time, eps1 = eps1, eps2 = eps2,
-         method = metric, neighbortype = neighbortype)
-  })
-  if (class(nb) == "try-error") {
-    stop("Calc Error: Check your `x` data.")
-  }
-  
-  message("\n2. Calculation Cluster")
-  cluster <- try(as.factor(st_dbscan(nb = nb, vals = vals, type = dbscantype, minPts = minPts, FUN = FUN, na_value = na_value)))
-  if (class(cluster) == "try-error") {
-    stop("Calc Error: Check your `vals` data.")
-  }
-
-  message("\nCompleted.")
-  obs_name <- paste0("Obs_", seq(1, length(vals), by = 1))
-  raw_data <- local({
-    d <- do.call(data.frame, lapply(vals, function(m) {
-      as.vector(m$D)
+    stopifnot(length(x) %% 3 == 0)
+    ret <- do.call(c, lapply(seq(1, length(x), by = 3), function(m) {
+      setOneVals(name = x[[m]],
+                 v = x[[m + 1]],
+                 deps = x[[m + 2]])
     }))
-    names(d) <- obs_name
-    ret <- list()
-    num <- if (any(class(x) == "sf") || any(class(x) == "data.frame") || any(class(x) == "matrix")) {
-      nrow(x)
-    } else {
-      length(x)
-    }
-    if (neighbortype == "spatial") {
-      d <- data.frame(id = seq(1, num, by = 1),
-                      time = do.call(c, Map(rep, time, num)),
-                      d)
-      d$cluster <- cluster
-      for (i in seq(1, length(time), by = 1)) {
-        ret[[i]] <- d[seq(1, num, by = 1) + num * (i - 1), ]
-      }
-      names(ret) <- as.character(time)
-    } else {
-      ret <- data.frame(id = seq(1, num, by = 1),
-                        time = time,
-                        d,
-                        cluster = cluster)
+    if (length(unique(lapply(ret, function(m) {length(m$v)}))) > 1) {
+      stop("Contains different numbers of data. All must be aligned to the same number of data.")
     }
     return(ret)
-  })
-  if (neighbortype == "random") {
-    time <- sort(unique(time))
   }
-  if (exists("archive_x")) {
-    x <- archive_x
-  }
-  ret_table <- if (any(class(x) == "matrix")) {
-    data.frame(id = seq(1, nrow(x), by = 1),
-               x = x[, 1],
-               y = x[, 2])
-  } else if (any(class(x) == "data.frame")) {
-    data.frame(id = seq(1, nrow(x), by = 1),
-               x = x$x,
-               y = x$y)
-  } else {
-    sf::st_sf(id = seq(1, length(x), by = 1),
-              geometry = x)
-  }
-  ret <- list(cluster = cluster,
-              eps1 = eps1,
-              eps2 = eps2,
-              minPts = minPts,
-              metric = list(metric = metric,
-                            neighbortype = neighbortype,
-                            dbscantype = dbscantype),
-              neighborlist = nb,
-              delta_eps = local({
-                d <- lapply(vals, function(m) {
-                  m$delta_eps
-                })
-                names(d) <- obs_name
-                return(d)
-              }),
-              results = list(geo = ret_table,
-                             time = time,
-                             value = raw_data))
-  class(ret) <- "stdbscan"
-  return(ret)
 }
+
+#' Obtains data at an arbitrary time position from the data created by the setVals function.
+#'
+#' setVals関数で作成したデータから、任意の時間位置のデータを取得します。
+#'
+#' @export
+#' @param x setVals関数で作成されたデータを指定します。
+#' @param timelength 各時間のデータが同数の場合、全時間の長さを指定します。
+#' @param time 各時間のデータが同数ではない場合、setVals関数のv変数と同数の時間情報ベクトルを指定します
+#' @param pos 抽出する時間の位置または時間の値を指定します。
+#' timelengthに値を指定した場合は、何番目の時間のデータを抽出するか指定します。このとき、x$vのデータはncol = timelength のmatrixに変換され、pos 列目のデータを返すようになります。(as.matrix(x$v, ncol = timelength)[, pos])
+#' time引数にデータを指定した場合は、抽出する時間値そのものを指定します。データに一致する情報だけを取得します。(x$v[time == pos])
+#' @keywords internal
+#' @examples
+#' vals <- setVals("test1", rnorm(100), 2, "test2", matrix(rnorm(100), ncol = 10), 4.1)
+#' getVals(vals, timelength = 10, pos = 2)
+#' getVals(vals, time = sample(1:10, 100, replace = TRUE), pos = 2)
+getVals <- function(x, timelength = NULL, time = NULL, pos) {
+  lapply(x, function(m) {
+    m$v <- if (all(!is.null(timelength), is.null(time))) {
+      matrix(m$v, ncol = timelength)[, pos]
+    } else if (all(is.null(timelength), !is.null(time))) {
+      m$v[which(time == pos)]
+    }
+    return(m)
+  })  
+}
+
+#' Calculate adjacent points of time information
+#'
+#' 時間情報ベクトルの隣接情報を作成します。
+#'
+#' @export
+#' @param x sfcクラスのデータを指定します。
+#' @param t1 隣接点の最低値を指定します。
+#' @param t2 隣接点の最大値を指定します。
+#' @examples
+#' td <- sample(seq(as.Date("2025-01-01"), as.Date("2025-02-01"), by = "1 day"), 100, replace = TRUE)
+#' tnearneigh(x = td, t1 = 2, t2 = 4)
+tnearneigh <- function(x, t1 = 0, t2) {
+  stopifnot(!is.null(x))
+  stopifnot(any(class(t1) %in% c("POSIXct", "POSIXt", "Date", "numeric")))
+  stopifnot(any(class(t2) %in% c("POSIXct", "POSIXt", "Date", "numeric")))
+  timediff <- lapply(seq(1, length(x)), function(i) {
+    d <- abs(x[[i]] - x)
+    n <- which(t1 <= d & d <= t2)
+    n[n != i]
+  })
+  return(structure(timediff, class = "nb"))
+}
+
+#' calc neighbors.
+#'
+#' @param x sf class data
+#' @param fun Specifies the method used to calculate the adjacency points.
+#' * dist: use spdep::dnearneigh function.
+#' * knn: use spdep::knearneigh and spdep::knn2nb function.
+#' * poly: use spdep::poly2nb function.
+#' * eublidean: use spdep::dnearneigh function and x converted sf to data.frame.
+#' @param opt set function options.
+calc_nb <- function(x, fun = c("dist", "knn", "poly", "euclidean"), opt) {
+  if (fun == "dist") {
+    message("call: spdep::dnearneigh")
+    # spdep::dnearneigh(x = x, d1 = d1, d2 = d2, ...)
+    return(do.call(spdep::dnearneigh, c(list(x = x), opt)))
+  } else if (fun == "knn") {
+    message("call: spdep::knearneigh")
+    # spdep::knearneigh(x = x, k = k, ...)
+    return(spdep::knn2nb(do.call(spdep::knearneigh, c(list(x = x), opt))))
+  } else if (fun == "poly") {
+    message("call: spdep::poly2nb")
+    # spdep::poly2nb(pl = x, ...)
+    return(do.call(spdep::poly2nb, c(list(pl = x), opt)))
+  } else if (fun == "euclidean") {
+    message("call: spdep::dnearneigh (longlat = FALSE)")
+    #return(do.call(dbscan::frNN, c(list(x = sf::st_coordinates(x)), opt)))
+    return(do.call(spdep::dnearneigh, c(list(x = sf::st_coordinates(x)), opt)))
+  }
+}
+
+#' create neighbor list
+#'
+#' 隣接点行列を作成します。
+#'
+#' @export
+#' @param x `sfc` クラスの位置情報を指定します。
+#' @param time numeric, date, ISOdate, POSIXct
+#' @param eps0 dist x and y (lower) [km]
+#' @param eps1 dist x and y (uppwer) [km]
+#' @param eps2 dist time. set seconds.
+#' @param neighbortype
+#' * "spatial": For Grid data. Adjust nb size before calc.
+#' * "random": For normal(random point) data. not Adjustment.
+#' @keywords internal
+#' @examples
+#' eps1 <- 144
+#' minPts <- 5
+#' num <- 1000
+#' vals <- setVals("test1", rnorm(num), 0.2,
+#'                 "test2", matrix(rnorm(num), ncol = 10), 0.2)
+#' ## ramdom pointdata.
+#' x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+#'                              lat = runif(num, min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' (nb <- stnb(x = x, eps1 = eps1, time = NULL, neighbortype = "random"))
+#' eps2 <- 3600 * 3
+#' t <- seq(as.POSIXct("2020-01-01 03:00:00"), as.POSIXct("2020-01-01 12:00:00"), by = "3 hour")
+#' vals <- setVals("test1", rnorm(num * length(t)), 0.2,
+#'                 "test2", matrix(rnorm(num * length(t)), ncol = 10), 0.2)
+#' x <- sf::st_as_sf(data.frame(lon = runif(num * length(t), min = 130, max = 140),
+#'                              lat = runif(num * length(t), min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' (nb <- stnb(x = x, eps1 = eps1, eps2 = eps2, time = sample(t, num, replace = TRUE), neighbortype = "random"))
+#' 
+#' ## spatial point
+#' lon <- seq(130, 140, by = 1)
+#' lat <- seq(30, 40, by = 1)
+#' x <- sf::st_as_sf(expand.grid(lon, lat), coords = c("Var1", "Var2"), crs = 4326) |>
+#'   sf::st_geometry()
+#' (nb <- stnb(x = x, eps1 = eps1, eps2 = eps2, time = sample(t, length(x), replace = TRUE), neighbortype = "spatial"))
+stnb <- function(x = NULL,
+                 time = NULL,
+                 eps0 = 0,
+                 eps1 = NULL,
+                 eps2 = NULL,
+                 k = NULL,
+                 neighbortype = c("random", "spatial"),
+                 fun = "dist",
+                 ...) {
+  stopifnot(any(class(x) %in% "sfc"))
+  stopifnot(!is.null(eps1))
+  neighbortype <- match.arg(neighbortype)
+  fun <- match.arg(fun, c("dist", "knn", "poly", "euclidean"))
+  
+  if (fun == "dist") {
+    opt <- list(d1 = eps0,
+                d2 = eps1,
+                ...)
+  } else if (fun == "knn") {
+    opt <- list(k = k, ...)
+  } else if (fun == "poly") {
+    opt <- list(...)
+  } else if (fun == "euclidean") {
+    opt <- list(eps = eps1, ...)
+  }
+  
+  timevar <- sort(unique(time))
+  # if (any(is.null(time), length(timevar) == 1)) {
+  #   sp_nb <- calc_nb(x = x, fun = fun, opt = opt)
+  #   ts_nb <- NA # tnearneigh(x = x, t2 = eps2)
+  # } else if (all(!is.null(time), length(timevar) > 1)) {
+  #   stopifnot(!is.null(eps2))
+  #   ts_nb <- tnearneigh(timevar, t2 = eps2)
+  #   if (all(neighbortype == "random", parallel)) {
+  #     spdata <- split(x, time)[as.character(timevar)]
+  #     sp_nb <- lapply(spdata, function(m) {
+  #       calc_nb(x = m, fun = fun, opt = opt)
+  #     })
+  #     ts_nb <- tnearneigh(timevar, t2 = eps2)
+  #   } else if (all(neighbortype == "spatial", parallel)) {
+  #     sp_nb <- calc_nb(x = x, fun = fun, opt = opt)
+  #     ts_nb <- tnearneigh(timevar, t2 = eps2)
+  #   } else if (all(neighbortype == "random", !parallel)) {
+  #     sp_nb <- structure(Map(intersect,
+  #                            calc_nb(x = x, fun = fun, opt = opt),
+  #                            tnearneigh(time, t2 = eps2)),
+  #                        class = "nb")
+  #     ts_nb <- NA
+  #   } else if (all(neighbortype == "spatial", !parallel)) {
+  #     d_nb <- calc_nb(x = x, fun = fun, opt = opt)
+  #     sp_nb <- do.call(c, lapply(tnearneigh(timevar, t2 = eps2), function(m) {
+  #       ln <- length(d_nb) * (m - 1)
+  #       lapply(d_nb, function(aa) {
+  #         as.integer(unique(do.call(c, Map(`+`, list(aa), ln))))
+  #       })
+  #     }))
+  #     sp_nb <- structure(sp_nb, class = "nb")
+  #     ts_nb <- NA
+  #   }
+  # }
+  if (any(is.null(time), length(timevar) == 1)) {
+    sp_nb <- calc_nb(x = x, fun = fun, opt = opt)
+  } else if (all(!is.null(time), length(timevar) > 1)) {
+    stopifnot(!is.null(eps2))
+    # ts_nb <- tnearneigh(timevar, t2 = eps2)
+    if (neighbortype == "random") {
+      sp_nb <- structure(Map(intersect,
+                             calc_nb(x = x, fun = fun, opt = opt),
+                             tnearneigh(time, t2 = eps2)),
+                         class = "nb")      
+    } else if (neighbortype == "spatial") {
+      d_nb <- calc_nb(x = x, fun = fun, opt = opt)
+      sp_nb <- do.call(c, lapply(tnearneigh(timevar, t2 = eps2), function(m) {
+        ln <- length(d_nb) * (m - 1)
+        lapply(d_nb, function(v) {
+          as.integer(unique(do.call(c, Map(`+`, list(v), ln))))
+        })
+      }))
+      sp_nb <- structure(sp_nb, class = "nb")
+    }
+  }
+  if (all(!is.null(time), length(timevar) > 1, neighbortype == "spatial")) {
+    ln <- length(x)
+    msp <- lapply(sp_nb, function(m) {
+      ret <- m %% ln
+      ifelse(ret == 0, ln, ret)
+    })
+    sp_dist <- do.call(c, lapply(split(msp, rep(timevar, each = length(x))), function(m) {
+      class(m) <- "nb"
+      spdep::nbdists(nb = m, coords = x)
+    }))
+    names(sp_dist) <- NULL
+    # sp_dist <- spdep::nbdists(nb = sp_nb, coords = rep(x, length(timevar)))
+  } else {
+    sp_dist <- spdep::nbdists(nb = sp_nb, coords = x)
+  }
+  return(structure(list(dist = sp_dist,
+                        id = sp_nb,
+                        eps = eps1,
+                        metric = fun,
+                        neighbortype = neighbortype,
+                        coord = x,
+                        time = time,
+                        timevar = timevar),
+                   class = c("frNN", "NN") #class = "stnb"
+                   ))
+}
+# stnb <- function(x = NULL,
+#                  time = NULL,
+#                  eps0 = 0,
+#                  eps1 = NULL,
+#                  eps2 = NULL,
+#                  neighbortype = c("random", "spatial"),
+#                  parallel = FALSE) {
+#   stopifnot(any(class(x) %in% "sfc"))
+#   stopifnot(!is.null(eps1))
+#   neighbortype <- match.arg(neighbortype)
+
+#   ## convert m -> km
+#   eps0 <- eps0 * 10 ^ 3 
+#   eps1 <- eps1 * 10 ^ 3
+
+#   timevar <- sort(unique(time))
+#   if (any(is.null(time), length(timevar) == 1)) {
+#     sp_nb <- spdep::dnearneigh(x = x,
+#                                d1 = eps0,
+#                                d2 = eps1)
+#     ts_nb <- NA # tnearneigh(x = x, t2 = eps2)
+#   } else if (all(!is.null(time), length(timevar) > 1)) {
+#     stopifnot(!is.null(eps2))
+#     ts_nb <- tnearneigh(timevar, t2 = eps2)
+#     if (all(neighbortype == "random", parallel)) {
+#       spdata <- split(x, time)[as.character(timevar)]
+#       sp_nb <- lapply(spdata, function(m) {
+#         spdep::dnearneigh(x = m,
+#                           d1 = eps0,
+#                           d2 = eps1)
+#       })
+#       ts_nb <- tnearneigh(timevar, t2 = eps2)
+#     } else if (all(neighbortype == "spatial", parallel)) {
+#       sp_nb <- spdep::dnearneigh(x = x,
+#                                  d1 = eps0,
+#                                  d2 = eps1)
+#       ts_nb <- tnearneigh(timevar, t2 = eps2)
+#     } else if (all(neighbortype == "random", !parallel)) {
+#       sp_nb <- structure(Map(intersect,
+#                              spdep::dnearneigh(x = x,
+#                                                d1 = eps0,
+#                                                d2 = eps1),
+#                              tnearneigh(time, t2 = eps2)),
+#                          class = "nb")
+#       ts_nb <- NA
+#     } else if (all(neighbortype == "spatial", !parallel)) {
+#       d_nb <- spdep::dnearneigh(x = x,
+#                                 d1 = eps0,
+#                                 d2 = eps1)
+#       sp_nb <- structure(do.call(c, lapply(tnearneigh(timevar, t2 = eps2), function(m) {
+#         unique(do.call(c, Map(`+`, list(d_nb), (length(d_nb) * (m - 1)))))
+#       })), class = "nb")
+#       ts_nb <- NA
+#     }
+#   }
+#   return(structure(list(sp_neigh = sp_nb,
+#                         ts_neigh = ts_nb,
+#                         neighbortype = neighbortype,
+#                         coord = x,
+#                         time = time,
+#                         timevar = timevar),
+#                    class = "stnb"))
+# }
+
+
+
+#' retrive neighbors function.
+#'
+#' 隣接点を探します。
+#'
+#' @param vals `list(list(D = ..., delta_eps))` のように指定します。
+#' @param nb 隣接点を vector 形式で指定します。
+#' @param cluster_pos valsにおける同一クラスターへのインデックスを指定します。
+#' @param FUN 集計用の計算関数を指定します。
+#' @keywords internal
+#' @note
+#' eps1 <- 144
+#' eps2 <- 3600 * 6
+#' minPts <- 5
+#' vals <- setVals("test1", rnorm(100), 0.2,
+#'                 "test2", matrix(rnorm(100), ncol = 10), 0.2)
+#' ## ramdom point and non temporal data.
+#' x <- sf::st_as_sf(data.frame(lon = runif(100, min = 130, max = 140),
+#'                              lat = runif(100, min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' nb <- stnb(x = x, eps1 = eps1/1000, eps2 = eps2, time = NULL, neighbortype = "random")
+#' message("neighbors: ")
+#' nb$id[[1]][[1]]
+#' message("cluster neighbors: ")
+#' rneighbors(vals = vals, nb = nb$id[[1]][[1]], cluster_pos = 1, FUN = mean)
+rneighbors <- function(vals, nb, cluster_pos = NULL, FUN) {
+  rep_num <- Reduce(intersect, lapply(vals, function(m) {
+    d <- FUN(m$v[cluster_pos])
+    which((m$v[nb] - d) <= m$deps)
+  }))
+  return(nb[rep_num])
+}
+
 
 #' calc ST-DBSCAN clustering and return cluster label.
 #'
@@ -235,19 +436,36 @@ stdbscan <- function(x,
 #' @param nb neighbor list
 #' @param minPts minimum number of points
 #' @param vals as delta_eps list
-#' @param type
+#' @param dbscantype
 #' * "grid": For Grid data. Adjust nb size before calc.
 #' * "default": For normal(random point) data. not Adjustment.
 #' @param FUN 集計用の計算関数を指定します。
-#' @param na_value 元データ (D) にNA値が含まれている場合に代替する値を指定します。
+#' @param na_value 元データにNA値が含まれている場合に代替する値を指定します。
 #' なお、データは代替して計算されますが、NA値のクラスタリング結果は Noise 判定となります。
 #' Noise判定にしたくない場合はこの機能を利用せず、引数指定時にNA値を除去または代替したデータを設定するようにしてください。
-st_dbscan <- function(nb = NULL,
-                      vals = list(list(D = NULL, ## val list
-                                       delta_eps = 5)),
-                      type = c("grid", "default"),
-                      minPts = 10, FUN = mean, na_value = -9999) {
-  type <- match.arg(type)
+#' @keywords internal
+#' @note
+#' eps1 <- 144 ## km
+#' eps2 <- 3600 * 6
+#' minPts <- 20
+#' FUN <- mean
+#' num <- 10000
+#' vals <- setVals("test1", rnorm(num, mean = 10, sd = 1), 0.05,
+#'                 "test2", matrix(rnorm(num, mean = 100, sd = 10), ncol = 10), 5)
+#' ## ramdom point and non temporal data.
+#' x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+#'                              lat = runif(num, min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' nb <- stnb(x = x, eps1 = eps1, eps2 = eps2, time = NULL, neighbortype = "random")
+#' cl <- calc_stdbscan(nb = nb$id, vals = vals, dbscantype = "default", minPts = minPts)
+calc_stdbscan <- function(nb = NULL,
+                          vals = setVals(),
+                          dbscantype = c("default", "grid"),
+                          minPts = 5,
+                          FUN = mean,
+                          na_value = -9999) {
+  dbscantype <- match.arg(dbscantype)
   stopifnot(is.list(vals))
   stopifnot(!is.null(nb))
   
@@ -255,226 +473,343 @@ st_dbscan <- function(nb = NULL,
   cluster <- 0
 
   ## set cluster column
-  # label <- rep("Noise", times = length(nb))
-  # if contain NA value the create "cluter_NA" label at that position.
-  # otherwise, create "Noise" label.
+  # if contain NA value the create "cluter_NA" value (= -9999) at that position.
+  # otherwise, create "Noise" label.(= 0)
   label <- ifelse(apply(do.call(cbind,
-                                Map(function(x) as.vector(x$D),
-                                    vals)),
-                        1, function(x) any(is.na(x))),
-                  "cluster_NA", "Noise")
-  if (is.matrix(vals[[1]]$D)) {
-    label <- matrix(label, nrow = nrow(vals[[1]]$D), ncol = ncol(vals[[1]]$D))
+                                Map(function(x) as.vector(x$v),
+                                    vals)), 1,
+                        function(x) any(is.na(x))),
+                  -9999, 0)
+  if (all(do.call(c, lapply(vals, function(m) is.matrix(m$v))))) {
+    label <- matrix(label, nrow = nrow(vals[[1]]$v), ncol = ncol(vals[[1]]$v))
   }
-  vals <- lapply(vals, function(x) {
-    within(x, {
-      D <- as.vector(ifelse(is.na(D), na_value, D))
-    })
+  
+  ## convert na_value
+  vals <- lapply(vals, function(m) {
+    m$v <- ifelse(is.na(m$v), na_value, m$v)
+    return(m)
   })
   
   ## st-dbscan
-  message("\nStart Clustering:  ", date())
+  pb <- txtProgressBar(min = 0, max = length(nb), style = 3)
   for (i in seq(1, length(nb))) {
-    if (label[i] == "Noise") {
-      neighbours <- if (type == "grid") {
-        ## 中心点と隣接点との差がΔeps以下のデータのみ抽出
-        rneighbors(nb = nb[[i]],
-                   vals = vals,
-                   mean_val = lapply(vals, function(m) {
-                     m$D[i]
-                   }),
-                   label = NULL, mode = "all", FUN = FUN)
-      } else if (type == "default") {
-        nb[[i]]
+    setTxtProgressBar(pb, i)
+    if (any(label[i] == na_value, 0 < label[i])) {
+      next
+    }
+    
+    neigh <- if (dbscantype == "grid") {
+      rneighbors(vals = vals, nb = nb[[i]], cluster_pos = nb[[i]], FUN = FUN)
+    } else if (dbscantype == "default") {
+      nb[[i]]
+    }
+    neigh <- neigh[which(label[neigh] == 0)]
+    if (length(neigh) <= minPts) {
+      next
+    }
+
+    ## up to cluster number
+    cluster <- cluster + 1
+
+    ## set cluster
+    label[c(i, neigh)] <- cluster
+    
+    ## check node and Add Cluster.
+    while (length(neigh) != 0) {
+      clustpos <- which(label == cluster)
+      merge_neigh <- Reduce(function(x, y) setdiff(x, y), list(unique(unlist(nb[neigh])),
+                                                               neigh,
+                                                               which(label > 0)))
+      node <- rneighbors(vals = vals,
+                         nb = merge_neigh,
+                         cluster_pos = clustpos,
+                         FUN = FUN)
+      label[node] <- ifelse(label[node] == 0 | label[node] == -9999,
+                            cluster,
+                            label[node])
+      neigh <- sort(unique(node))
       }
+  }
+  close(pb)
   
-      ## minPtsより隣接数が少ない場合は "Noise" 判定
-      if (minPts <= length(neighbours)) {
-        ## up to cluster number
-        cluster <- cluster + 1
+  # ## Rcpp::sourceCpp("./src/stdbscan.cpp")
+  # label <- stdbscan_core(nb = nb, vals = vals, dbscantype = dbscantype,
+  #                        minPts = minPts, na_value = na_value)
 
-        ## set cluster
-        label[c(i, neighbours)] <- as.character(cluster)
-        message("\tCreate Cluster: ", as.character(cluster))
-        
-        ## check node and Add Cluster.
-        while (length(neighbours) != 0) {
-          nodeList <- c()
-          for (ni in neighbours) {
-
-            clustnum <- which(label == as.character(cluster))
-            node <- rneighbors(nb = nb[[ni]],
-                               vals = vals,
-                               mean_val = lapply(vals, function(m) {
-                                 m$D[clustnum]
-                               }),
-                               label = label,
-                               mode = "step", FUN = FUN)
-            nodeList <- c(nodeList, node)
-
-            label[node] <- ifelse(label[node] == "Noise",
-                                  as.character(cluster),
-                                  label[node])
-          }
-          neighbours <- sort(unique(nodeList))
-        }
-      }
-    }
-  }
-
-  ## Convert "cluster_NA" label to "Noise" label
-  label <- ifelse(label == "cluster_NA", "Noise", label)
-  
-  message("\n", date(), "  Completed.")
-  return(label)
-}
-
-
-#' retrive neighbors function.
-#'
-#' 隣接点を探します。
-#'
-#' @param nblist `stnb` 関数の出力結果を指定します。
-#' @param vals `list(list(D = ..., delta_eps))` のように指定します。
-# @param num アクセス番号を指定します。この番号は 1 ~ `nb` の長さの間の整数値を指定します。
-#' @param mean_val 平均値または平均値を算出するための数値ベクトルを指定します。
-#' @param label クラスタリングのラベルを指定します。NULLの場合は隣接点がそのまま出力され、labelベクトルを指定すると、"Noise" となっている番号をピックアップして出力します。
-#' @param mode
-#' * "all": 全ての計算を一括で行います。各値と平均値との差をベクトル演算するため、計算回数は少ない反面クラスター平均からの距離 (Δeps) は不正確なります。平均値が変わらない場合に利用可能です。
-#' * "step": 逐次計算を実行し、各値と平均値との差の計算を毎回実行し、クラスター平均からの距離 (Δeps) に正確に返します。
-#' @param FUN 集計用の計算関数を指定します。
-rneighbors <- function(nblist,
-                       vals,
-                       #num,
-                       mean_val = list(),
-                       label = NULL,
-                       mode = "step",
-                       FUN = mean) {
-  #nblist <- nb[[num]]
-  base <- list()
-  for (i in seq(1, length(vals), by = 1)) {
-    m <- vals[[i]]
-    base[[i]] <- rneighbors_one(nb = nblist,
-                                x = m$D[nblist],
-                                deps = m$delta_eps,
-                                mean_val = mean_val[[i]],
-                                mode = mode,
-                                FUN = FUN)
-  }
-
-  ret <- if (length(vals) > 1) {
-    intersects(base)
-  } else if (length(vals) == 1) {
-    base[[1]]
-  }
-
-  if (!is.null(label)) {
-    ret[label[ret] == "Noise"]
-  } else {
-    return(ret)
-  }
-}
-
-
-rneighbors_one <- function(nb, x, deps, mean_val,
-                           mode = "all", FUN = mean) {
-  if (mode == "all") {
-    if (length(mean_val) > 1) {
-      mean_val <- FUN(mean_val)
-    }
-    return(nb[abs(x - mean_val) <= deps])
-  } else if (mode == "step") {
-    stopifnot(length(mean_val) > 1)
-
-    ret <- rep(FALSE, length(x))
-
-    local_mean_value <- FUN(mean_val)
-    for (i in seq(1, length(x), by = 1)) {
-      if (abs(x[i] - local_mean_value) <= deps) {
-        ret[i] <- TRUE
-        mean_val <- c(mean_val, x[i])
-        local_mean_value <- FUN(mean_val)
-      } 
-    }
-
-    return(nb[ret])
-  }
-}
-
-
-#' create neighbor list
-#'
-#' 隣接点行列を作成します。
-#'
-#' @param x double(), sf, sfc
-#' @param y double()
-#' @param time numeric, date, ISOdate, POSIXct
-#' @param eps0 dist x and y (lower)
-#' @param eps1 dist x and y (uppwer)
-#' @param eps2 dist time. set seconds.
-#' @param method use spdep::dnearneigh.
-#' * "geo": calc for geographics. 
-#' * "euclidean": calc for euclidean area.
-#' @param neighbortype
-#' * "spatial": For Grid data. Adjust nb size before calc.
-#' * "random": For normal(random point) data. not Adjustment.
-#' 
-stnb <- function(x = double(),
-                 y = double(),
-                 time = NULL,
-                 eps0 = 0,
-                 eps1 = NULL,
-                 eps2 = NULL,
-                 method = c("geo", "euclidean"),
-                 neighbortype = c("spatial", "random")
-                 ) {
-  stopifnot(!is.null(x))
-  stopifnot(!is.null(time))
-  stopifnot(!is.null(eps1))
-  stopifnot(!is.null(eps2))
-  method <- match.arg(method)
-  neighbortype <- match.arg(neighbortype)
-  
-  longlat <- ifelse(method == "geo", TRUE, FALSE)
-  if (any(class(x) %in% c("sf", "sfc"))) {
-    g <- spdep::dnearneigh(x = x,
-                           d1 = eps0, d2 = eps1)
-  } else {
-    g <- spdep::dnearneigh(x = cbind(x, y),
-                           d1 = eps0, d2 = eps1,
-                           longlat = longlat)
-  }
-  timediff <- lapply(time, function(tn) {
-    which(abs(time - tn) <= eps2)
+  clust_label_level <- unique(label)
+  clust_label_level <- clust_label_level[which(clust_label_level != na_value & clust_label_level > 0)]
+  att <- lapply(clust_label_level, function(m) {
+    num <- which(label == m)
+    valnames <- do.call(c, lapply(vals, function(vls) attr(vls, "label")))
+    list(name = m,
+         pos = num,
+         values = Map(assign,
+                      valnames,
+                      lapply(vals, function(vls) vls$v[num]))
+         )
   })
-  
-  if (neighbortype == "spatial") {
-    if (any(class(x) == "sf")) {
-      len <- nrow(x)
-    } else {
-      len <- length(x)
-    }
-    ret <- do.call(c, lapply(timediff, function(num) {
-      lapply(g, function(gd) {
-        unique(do.call(c, Map(`+`, list(gd), (num - 1) * len)))
-      })
-    }))
-  } else if (neighbortype == "random") {
-    ret <- Map(intersect, g, timediff)
-  }
 
-  return(structure(Map(as.integer, ret),
-                   class = "nb"))
+
+  ## Convert "Noise" label
+  label <- ifelse(label == 0 | label == na_value, "Noise", as.character(label))
+  return(structure(label,
+                   cluster = unique(label),
+                   deps = Map(assign,
+                              do.call(c, lapply(vals, function(vls) attr(vls, "label"))),
+                              lapply(vals, function(vls) vls$deps)),
+                   FUN = substitute(FUN),
+                   info = att))
 }
 
 
-intersects <- function(x = list()) {
-  if (length(x) == 1) {
-    return(x)
-  } else if (length(x) == 2) {
-    intersect(x[[1]], x[[2]])
+#' calc neighbors and ST-DBSCAN.
+#'
+#' @export
+#' @param x 位置情報データをsf, sfc, matrix, data.frameのい何れかで指定します。
+#' matrix, data.frame で指定する場合、経度をx, 緯度をyとして列名 (colnames, names) 、データを作成してください。
+#' また、matrix, data.frameで指定した場合は、内部でsfcクラスのデータに変換されます。
+#' @param time 時間情報を指定します。
+#' `neighbortype = "random"` の場合、x (位置情報) の数とtimeの長さが一致している必要があります。 (`length(x) == length(time)`)
+#' `neighbortype = "spatial"` の場合、`length(x) * length(time) ` がデータのサイズになります。
+#' @param eps1 空間近傍地点のしきい値を距離 (km) で指定します。
+#' @param eps2 時間近傍地点のしきい値を数値で指定します。
+#' time変数に数値を指定指定した場合は、eps2も数値で指定します。
+#' time変数をDate型で指定した場合は、日差 (day) として指定します。
+#' time変数をPOSIXct型で指定した場合は、秒差 (sec) として指定します。
+#' @param minPts クラスター判定するための最小近傍地点数を整数で指定します。
+#' @param vals クラスタリングする属性値を指定します。
+#' ここでは複数属性のデータを指定することができ、`setVals("data-name", valus(vector), Δeps)` として指定することが出来ます。
+#' 指定の方法の詳細は `setOneVals()` 関数を参照してください。
+#' @param neighbortype 空間隣接地点の計算方法を指定します。
+#' "random" と指定した場合、位置情報がランダムであるデータの計算を実施します。
+#' このとき、位置情報 (x) の地点数と 属性値 (vals) のデータ数が同数である必要があります。
+#' timeを指定する場合は、timeの長さも位置情報の地点数と同数である必要があります。
+#' (length(x) == length(time) == length(vals[[1]]$v))
+#' "spatial" と指定した場合、位置情報 (x) の地点数と時間情報 (time) の数を乗じた値が属性値のデータ数と等しくなる必要がります。
+#' (length(x) * length(time) == length(vals[[1]]$v))。
+#' @param dbscantype 空間隣接地点数の補足設定を行います。
+#' WRFに代表される気象シミュレーションのように、領域を格子状に分割して計算された (netCDF) データでは、地点の位置情報は同じで時間情報だけが異なるデータ構造になっています。
+#' このようなデータでは一定以上の隣接地点数を見込むことができるため、必ずクラスターが作成されるという弊害が存在します。
+#' そのため、 `dbscantype = "grid"` と指定した場合に限り、クラスターの作成条件を本来のST-DBSCANより厳しくします。
+#' 具体的に、ST-DBSCANのアルゴリズムでは 隣接地点数が minPts 以上である場合に無条件でクラスター化しますが、このオプションを指定することで属性値の計算結果を判定条件とするようにします。
+#' 特に指定がない場合、`neighbortype == spatial` の場合、自動で `dbscantype = "grid"` として計算されます。
+#' @param FUN 同一のクラスターを判別するための方法を定義します。
+#' 文献では、クラスターの属性値平均値との差 (Δeps) を確認し、新たな地点を追加しています。標準の設定ではこの内容に従い、 `kean` 関数をが指定されています。
+#' クラスターへの追加方法を変更する場合 (例えば中央値との差を見るようにする場合) は、 `FUN = mesian` のように指定します。
+#' @param na_value 属性情報 vals にNA値が含まれている場合、そのままではクラスタリングはエラーになります。
+#' そのため、一時的に属性情報を na_valueで上書きしてクラスタリングの計算を行います。
+#' この値は属性情報とは関係がない値にすることが望ましく、例えば、属性情報がプラスの値であれば na_valueは大きなマイナスの値にすると Nose として判定され舞うs。
+#' 標準では `na_value = -9999` に指定されています。
+#' @param nb_fun 隣接地点の計算方法を指定します。
+#' * dist: 一定の距離 (km) に基づく隣接点を指定します。
+#' * knn: 近い方から k 地点を隣接点とします。別途、 `k = ` 引数で条件を指定して下さい。
+#' * poly: ポリゴン同士が接している場合に隣接点とみなします。この場合、 x 引数には sfc_MULTIPOLYGON 属性のデータを指定する必要があります。
+#' * euclidean: ユークリッド距離による座標間の直接的な距離を元に隣接点を計算します。
+#' @param k `nb_fun = "knn"` の場合に指定します。整数値で近傍点数を指定して下さい。
+#' @param ... 隣接点の計算オプションを指定します。以下の関数で使用できる引数オプションを指定できます。
+#' spdep::dnearneigh, spdep::knearneigh, spdep::poly2nb, dbscan::frNN
+#' 
+#' @note
+#' eps1 <- 144 ## km
+#' eps2 <- 3600 * 6
+#' time <- NULL
+#' minPts <- 20
+#' FUN <- mean
+#' num <- 1000
+#' 
+#' ## only geospatial data (dbscan).
+#' x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+#'                              lat = runif(num, min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' clust <- stdbscan(x = x, eps1 = eps1, minPts = minPts)
+#' 
+#' ## ramdom point and non temporal data.
+#' vals <- setVals("test1", rnorm(num, mean = 10, sd = 1), 0.05,
+#'                 "test2", matrix(rnorm(num, mean = 100, sd = 10), ncol = 10), 5)
+#' x <- sf::st_as_sf(data.frame(lon = runif(num, min = 130, max = 140),
+#'                              lat = runif(num, min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' clust <- stdbscan(x = x, eps1 = eps1, minPts = minPts,
+#'                   vals = vals, neighbortype = "random")
+#' 
+#' # random point and temporal data.
+#' time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+#' vals <- setVals("test1", rnorm(num * length(time), mean = 10, sd = 1), 0.5,
+#'                 "test2", matrix(rnorm(num * length(time), mean = 100, sd = 10), ncol = 10), 5)
+#' x <- sf::st_as_sf(data.frame(lon = runif(num * length(time), min = 130, max = 140),
+#'                              lat = runif(num * length(time), min = 30, max = 40)),
+#'                   coords = c("lon", "lat"), crs = 4326) |>
+#'   sf::st_geometry()
+#' clust <- stdbscan(x = x, time = rep(time, each = num), eps1 = eps1, eps2 = eps2, minPts = minPts,
+#'                   vals = vals, neighbortype = "random")
+#' 
+#' ## grid-base spatial point and temporal data.
+#' time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+#' vals <- setVals("test1", rnorm(length(x) * length(time), mean = 10, sd = 1), 0.5,
+#'                 "test2", matrix(rnorm(length(x) * length(time), mean = 100, sd = 10), ncol = length(time)), 5)
+#' x <- sf::st_as_sf(expand.grid(seq(130, 140, by = 1), seq(30, 40, by = 1)),
+#'                   coords = c("Var1", "Var2"), crs = 4326) |>
+#'   sf::st_geometry()
+#' clust <- stdbscan(x = x, time = time, eps1 = eps1, eps2 = eps2, minPts = 4,
+#'                   vals = vals, neighbortype = "spatial")
+stdbscan <- function(x,
+                     time = NULL, 
+                     eps1 = double(),
+                     eps2 = double(),
+                     minPts = integer(),
+                     vals = setVals(),
+                     neighbortype = "random",
+                     dbscantype = NULL,
+                     FUN = mean,
+                     na_value = -9999,
+                     nb_fun = "dist",
+                     k = integer(),
+                     ...) {
+  ## check data
+  stopifnot(!is.null(x))
+  stopifnot(length(minPts) > 0)
+  neighbortype <- match.arg(neighbortype, c("random", "spatial"))
+  if (all(is.null(dbscantype), neighbortype == "spatial", !is.null(time))) {
+    dbscantype <- "grid"
   } else {
-    intersects(c(list(intersect(x[[1]], x[[2]])), x[-c(1:2)]))
+    dbscantype <- "default"
   }
-}
+  dbscantype <- match.arg(dbscantype, c("default", "grid"))
 
+  ## check neighbortype
+  ## convert x to sf class.
+  if (any("matrix" %in% class(x), class(x) == "data.frame")) {
+    x <- sf::st_as_sf(x, coords = c("x", "y"), crs = 4326)
+  } 
+  x <- sf::st_geometry(x)
+
+  if (is.null(vals)) {
+    scantype <- "dbscan"
+  } else {
+    scantype <- "stdbscan"
+    if (is.null(time)) {
+      stopifnot(length(x) == length(vals[[1]]$v))
+    } else if (all(neighbortype == "random", !is.null(time))) {
+      stopifnot(length(x) == length(time))
+    } else if (all(neighbortype == "spatial", !is.null(time))) {
+      stopifnot(length(x) * length(time) == length(vals[[1]]$v))
+    }
+  }
+
+  if (nb_fun == "dist") {
+    stopifnot(length(eps1) > 0)
+    if (!is.null(time)) {
+      stopifnot(length(eps2) > 0)
+    }    
+  } else if (nb_fun == "knn") {
+    stopifnot(k > 0)
+  } else if (nb_fun == "poly") {
+    stopifnot("sfc_MULTIPOLYGON" %in% class(x))
+  } else if (nb_fun == "euclidean") {
+    stopifnot(length(eps1) > 0)
+  }
+
+  if (all(nb_fun %in% c("dist", "knn"), !"sfc_POINT" %in% class(x))) {
+    warning("`stdbscan` requires POINT class data.")
+    warning("Apply the `sf::st_controid` function and use the position of the polygon's center of gravity.")
+    archive_x <- x
+    x <- sf::st_centroid(x)
+  }
+
+  
+  message("===== Start ST-DBSCAN method =====")
+  message("\n1. Calculation Neighbor List")
+
+  ## calc neighbors
+  if (scantype == "stdbscan") {
+    nb <- stnb(x = x, eps0 = 0, eps1 = eps1, eps2 = eps2, k = k, fun = nb_fun, 
+               time = time, neighbortype = neighbortype, ...)
+    # stnb(x = x, eps0 = 0, eps1 = eps1, eps2 = eps2, k = k, fun = "dist", time = time, neighbortype = "random")
+  } else if (scantype == "dbscan") {
+    if (all(nb_fun == "euclidean", !is.null(time))) {
+      nb <- dbscan::frNN(x = sf::st_coordinates(x), eps = eps1, ...)
+      nb$timevar <- NULL
+    } else {
+      nb <- stnb(x = x, eps0 = 0, eps1 = eps1, eps2 = eps2, k = k, fun = nb_fun,
+                 time = time, neighbortype = neighbortype, ...)
+    }    
+  }
+  
+  ## calc ST-DBSCAN
+  message("\n2. Calculation Cluster")
+  if (scantype == "dbscan") {
+    message("* Since `vals` is not specified, the calculation is performed by dbscan.")
+    #cluster <- dbscan::dbscan(x = sf::st_coordinates(x), eps = eps1, minPts = minPts, ...)
+    dbscan_out <- dbscan::dbscan(x = nb, minPts = minPts, ...)
+    cluster <- as.character(dbscan_out$cluster)
+  } else if (scantype == "stdbscan") {
+    message("* Performs ST-DBSCAN calculations.")
+    cluster <- calc_stdbscan(nb = nb$id, vals = vals, na_value = na_value,
+                             dbscantype = dbscantype, minPts = minPts, FUN = FUN)
+  }
+  raw_data <- data.frame(id = seq(1, length(x)),
+                         time = local({
+                           if (all(neighbortype == "random", !is.null(time))) {
+                             time
+                           } else if (all(neighbortype == "random", is.null(time))) {
+                             NA
+                           } else if (neighbortype == "spatial") {
+                             rep(nb$timevar, each = length(x))
+                           }
+                         }),
+                         cluster = cluster)
+  if (!is.null(vals)) {
+    raw_data <- cbind(raw_data,
+                      do.call(data.frame,
+                              Map(function(m, n) assign(m, n),
+                                  unlist(Map(function(m) attr(m, "label"), vals)),
+                                  Map(function(m) as.vector(m$v), vals))))
+  }
+  if (neighbortype == "spatial") {
+    raw_data <- split(raw_data, raw_data$time)
+    names(raw_data) <- nb$timevar
+  }  
+  if (exists("archive_x")) {
+    x <- archive_x
+  }
+  
+  ret <- structure(list(cluster = as.character(cluster),
+                        eps1 = units::set_units(eps1, "km"),
+                        eps2 = local({
+                          if (all(class(time) == "Date")) {
+                            units::set_units(eps2, "d")
+                          } else if (any(class(time) == "POSIXct")) {
+                            units::set_units(eps2, "s")
+                          } else {
+                            eps2
+                          }
+                        }),
+                        minPts = minPts,
+                        FUN = substitute(FUN), 
+                        metric = list(metric = local({
+                                        if (nb_fun == "dist") {
+                                          "geo(spdep::dnearneigh)"
+                                        } else if (nb_fun == "knn") {
+                                          "geo(spdep::knearneigh, spdep::knn2nb)"
+                                        } else if (nb_fun == "poly") {
+                                          "geo(spdep::poly2nb)"
+                                        } else if (any(nb_fun == "euclidean", scantype == "dbscan")) {
+                                          "euclidean(spdep::dnearneigh)"
+                                        }
+                                      }),
+                                      neighbortype = neighbortype,
+                                      dbscantype = dbscantype),
+                        neighborlist = nb,
+                        deps = attr(cluster, "deps"),
+                        vals = vals,
+                        cluster_info = attr(cluster, "info"),
+                        results = list(geo = sf::st_sf(id = seq(1, length(x)),
+                                                       geometry = x),
+                                       time = nb$timevar,
+                                       value = raw_data)),
+                   class = "stdbscan")
+  message("\nCompleted.")
+  return(ret)
+}

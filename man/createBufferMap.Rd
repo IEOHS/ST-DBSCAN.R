@@ -10,7 +10,7 @@ createBufferMap(
   buffer = TRUE,
   dist = 10000,
   coast = TRUE,
-  coastline = sf::sfc()
+  coastline = sf::st_sfc()
 )
 }
 \arguments{
@@ -32,5 +32,7 @@ createBufferMap(
 また、作成されたこれらの地図の重なりでクリッピングを行います。
 }
 \examples{
+\dontshow{if (exists("geo")) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 createBufferMap(geo = geo, voronoi = TRUE, buffer = TRUE, dist = 20000, coast = TRUE, coastline = sf::st_cfc())
+\dontshow{\}) # examplesIf}
 }

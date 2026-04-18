@@ -11,7 +11,7 @@ NULL
 #' 階層的 (Hierarchical) ST-DBSCAN法でクラスタリングを行います。
 #'
 #' @export
-#' @param x `stdbscan` 関数の `x` 引数の説明を参照してください。
+#' @inheritParams stdbscan
 #' @param ... `stdbscan` 関数の `x` 引数以外の引数を指定します。
 #' @param dist_option 階層的クラスタリングの距離の計算条件を指定します。ここでは `cluster::daisy` 関数の引数を `dist_option` 引数に `list` 形式で指定します。
 #' @param hclust_option クラスタリングの条件を指定します。 `base::hclust` 関数で利用できる引数を `list` 形式で指定します。
@@ -20,16 +20,19 @@ NULL
 #' * dist: 距離の計算結果テーブルが格納されています。
 #' * hc: クラスタリングのツリー情報が含まれています。
 #' @examples
-#' x <- seq(130, 140, by = 1)
-#' y <- seq(30, 40, by = 1)
-#' t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-#' geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
-#' 
-#' D <- abs(runif(nrow(geo) * length(t))) * 100
-#' clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-#'                   vals = list(list(D = D,
-#'                                    delta_eps = 20)),
-#'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
+#' eps1 <- 144 ## km
+#' eps2 <- 3600 * 6
+#' time <- NULL
+#' minPts <- 4
+#' FUN <- mean
+#' time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+#' x <- sf::st_as_sf(expand.grid(seq(130, 140, by = 1), seq(30, 40, by = 1)),
+#'                   coords = c("Var1", "Var2"), crs = 4326) |>
+#'   sf::st_geometry()
+#' vals <- setVals("test1", rnorm(length(x) * length(time), mean = 10, sd = 1), 0.5,
+#'                 "test2", matrix(rnorm(length(x) * length(time), mean = 100, sd = 10), ncol = length(time)), 5)
+#' clust <- hstdbscan(x = x, time = time, eps1 = eps1, eps2 = eps2, minPts = 4,
+#'                    vals = vals, neighbortype = "spatial")
 #' cutclust(clust, 4)
 hstdbscan <- function(x,
                       ...,
@@ -47,7 +50,11 @@ hstdbscan <- function(x,
     subset(clust$results$value, select = c(id, cluster))
   }
   rownames(d) <- seq(1, nrow(clust$results$geo), by = 1)
-  def <- do.call(cluster::daisy, c(list(x = d[-1]), dist_option))
+  train <- do.call(data.frame, lapply(d[-1], function(m) {
+    as.factor(m)
+  }))
+  def <- do.call(cluster::daisy, c(list(x = train), dist_option))
+  #def <- do.call(cluster::daisy, c(list(x = d[-1]), dist_option))
   hc <- do.call(hclust, c(list(d = def), hclust_option))
   ret <- c(clust,
            list(hc = hc,
@@ -66,16 +73,18 @@ hstdbscan <- function(x,
 #' @return
 #' 階層的クラスタリング結果のラベル、位置情報が含まれる data.frame が返ります。
 #' @examples
-#' x <- seq(130, 140, by = 1)
-#' y <- seq(30, 40, by = 1)
-#' t <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
-#' geo <- sf::st_as_sf(expand.grid(x, y), coords = c("Var1", "Var2"), crs = 4326)
-#' 
-#' D <- abs(runif(nrow(geo) * length(t))) * 100
-#' clust <- hstdbscan(x = geo, time = t, eps1 = 144, eps2 = 3600 * 6, minPts = 6,
-#'                   vals = list(list(D = D,
-#'                                    delta_eps = 20)),
-#'                   metric = "geo", neighbortype = "spatial", dbscantype = "grid")
+#' eps1 <- 144 ## km
+#' eps2 <- 3600 * 6
+#' time <- NULL
+#' minPts <- 4
+#' FUN <- mean
+#' time <- as.POSIXct("2024-01-01 00:00:00", tz = "JST") + 3600 * seq(0, 23, by = 6)
+#' x <- sf::st_as_sf(expand.grid(seq(130, 140, by = 1), seq(30, 40, by = 1)),
+#'                   coords = c("Var1", "Var2"), crs = 4326) |> sf::st_geometry()
+#' vals <- setVals("test1", rnorm(length(x) * length(time), mean = 10, sd = 1), 0.5,
+#'                 "test2", matrix(rnorm(length(x) * length(time), mean = 100, sd = 10), ncol = length(time)), 5)
+#' clust <- hstdbscan(x = x, time = time, eps1 = eps1, eps2 = eps2, minPts = 4,
+#'                    vals = vals, neighbortype = "spatial")
 #' cutclust(clust, 4)
 cutclust <- function(x, k, ...) {
   hc <- x$hc

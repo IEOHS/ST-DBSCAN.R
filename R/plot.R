@@ -5,6 +5,7 @@
 #' @import sf
 #' @import ggplot2
 #' @importFrom tidyr pivot_longer
+#' @importFrom gridExtra grid.arrange
 ## usethis namespace: end
 NULL
 
