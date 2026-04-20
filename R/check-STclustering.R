@@ -139,7 +139,6 @@ validstclust <- function(x = NULL,
                          nsim = 999) {
   
   ## checkmode
-  ## check_mode <- c("spatial", "temporal")
   check_mode <- match.arg(check_mode,
                           choices = c("spatial", "temporal"),
                           several.ok = TRUE)
@@ -171,14 +170,22 @@ validstclust <- function(x = NULL,
 
     message("\tCreate neighbor list")
     ##nb <- do.call(neighbor_method, c(list(x = geo), neighbor_option))
-    if (deparse(neighbor_method) == "spdep::poly2nb") {
-      nb <- eval(bquote(do.call(.(neighbor_method),
-                              c(list(pl = geo), .(neighbor_option)))))
-    } else {
-      nb <- eval(bquote(do.call(.(neighbor_method),
-                              c(list(x = geo), .(neighbor_option)))))
-    }
+    nb <- eval(bquote(do.call(.(neighbor_method),
+                              c(local({
+                                if (deparse(neighbor_method) == "spdep::poly2nb") {
+                                  list(pl = geo)
+                                } else {
+                                  list(x = geo)
+                                }
+                              }), .(neighbor_option)))))
     
+    # if (deparse(neighbor_method) == "spdep::poly2nb") {
+    #   nb <- eval(bquote(do.call(.(neighbor_method),
+    #                           c(list(pl = geo), .(neighbor_option)))))
+    # } else {
+    #   nb <- eval(bquote(do.call(.(neighbor_method),
+    #                           c(list(x = geo), .(neighbor_option)))))
+    # }    
     if (class(nb) == "knn") {
       nb <- spdep::knn2nb(nb)
     }
@@ -213,15 +220,16 @@ validstclust <- function(x = NULL,
       ts_data <- if (length(row_index) == 0) {
         NULL
       } else if (length(row_index) == 1) {
-        matrix(x[row_index, ], ncol = 1)
+        ts(matrix(x[row_index, ], ncol = 1))
       } else {
         ts(t(x[row_index, ]))
       }
-      
+      #ts_data <- ts_data[, apply(ts_data, 2, function(x) if (all(is.na(x))) FALSE else TRUE)]
+      if (all(is.na(ts_data))) {
+        ts_data <- NULL
+      }
       ## check r num
       if (is.null(ts_num_factor)) {
-        # ts_num_factor <- as.integer(gsub("^.*is *", "",
-        #                                  sparseDFM::tuneFactors(ts_data, plot = FALSE)))
         ts_num_factor <- get_num_factor(ts_data)
         message("num: ", ts_num_factor)
       }
@@ -276,7 +284,7 @@ validstclust <- function(x = NULL,
         rmse_d <- rmse(as.vector(ts_data[, colnames(fit)]),
                        as.vector(fit))
       } else {
-        r2_d <- rmse_d <- NULL
+        r2_d <- rmse_d <- NA
       }
       ## return
       list(cluster = m,
@@ -290,9 +298,9 @@ validstclust <- function(x = NULL,
   }
 
   ## merge sp_model and ts_model
-  if (any(check_mode == "temporal")) {
-    message("3. Evaluate spatial agglomeration.")
-  }
+  # if (any(check_mode == "temporal")) {
+  #   message("3. Evaluate spatial agglomeration.")
+  # }
   m_data <- if (all(check_mode == c("spatial", "temporal"))) {
     merge(as.data.frame(do.call(rbind, lapply(ts_model, function(m) {
       with(m, {
@@ -374,18 +382,10 @@ validstclust <- function(x = NULL,
                   NA
                 }
               }),
-              # sp_model = list(joincount = jc_data,
-              #                 joincount_mc = jc_mc_data,
-              #                 neighbor_list = nb,
-              #                 weight_list = w),
-              # ts_model = ts_model,
+ 
               geo = dplyr::left_join(x = sf::st_sf(cluster = cluster,
                                                    geometry = sf::st_transform(geo,
                                                                                crs = 4326)),
-                                     # y = subset(res_table,
-                                     #            select = c(as.factor(cluster),
-                                     #                       factor(sp_check, levels = c("***", "**", "*", ".")),
-                                     #                       factor(ts_check, levels = c("***", "**", "*", ".")))),
                                      y = with(res_table, {
                                        cluster <- as.factor(cluster)
                                        sp_check <- factor(sp_check, levels = c("***", "**", "*", "."))
@@ -404,8 +404,6 @@ validstclust <- function(x = NULL,
                   NA
                 }
               }),
-              # neighbor_method = deparse(bquote(do.call(.(neighbor_method),
-              #                                          c(list(x = geo), .(neighbor_option))))),
               nsim = nsim)
   message("All completed. ", date())
   structure(ret, class = "stclust")

@@ -2,9 +2,9 @@
 % Please edit documentation in R/callCluster.R, R/check-STclustering.R,
 %   R/hstdbscan.R, R/plot.R, R/print.R, R/stdbscan.R
 \docType{package}
-\name{stdbscan-package}
-\alias{stdbscan-package}
-\title{stdbscan: Spatio Temporal Density Based Scanning Clustering. (One Line, Title Case)}
+\name{GBstdbscan-package}
+\alias{GBstdbscan-package}
+\title{GBstdbscan: Spatio Temporal Density Based Scanning Clustering.}
 \description{
 What the package does (one paragraph).
 

@@ -759,7 +759,7 @@ stdbscan <- function(x,
                              rep(nb$timevar, each = length(x))
                            }
                          }),
-                         cluster = cluster)
+                         cluster = as.vector(cluster))
   if (!is.null(vals)) {
     raw_data <- cbind(raw_data,
                       do.call(data.frame,
