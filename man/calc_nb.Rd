@@ -4,7 +4,7 @@
 \alias{calc_nb}
 \title{calc neighbors.}
 \usage{
-calc_nb(x, fun = c("dist", "knn", "poly", "euclidean"), opt)
+calc_nb(x, fun = c("dist", "knn", "poly", "poly+dist", "euclidean"), opt)
 }
 \arguments{
 \item{x}{sf class data}

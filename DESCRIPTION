@@ -1,6 +1,6 @@
 Package: GBstdbscan
-Title: Spatio Temporal Density Based Scanning Clustering. 
-Version: 0.4.0
+Title: Spatio Temporal Density Based Scanning Clustering
+Version: 0.4.1
 Authors@R: 
     person("Shoei", "Furusawa", , "ieohs-furu30@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))

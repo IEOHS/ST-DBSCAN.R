@@ -6,6 +6,7 @@
 #' @importFrom sf st_coordinates
 #' @importFrom sf st_geometry
 #' @importFrom sf st_sf
+#' @importFrom sf st_distance
 #' @importFrom spdep dnearneigh
 #' @importFrom spdep knearneigh
 #' @importFrom spdep knn2nb
@@ -46,7 +47,7 @@ setOneVals <- function(name = NULL,
   if (is.null(name)) {
     name <- "stdbscan raw data"
   }
-  return(list(structure(list(v = v,
+  return(list(structure(list(v = as.vector(v),
                              deps = deps),
                         class = "raw_stdbscan",
                         label = name)))
@@ -148,7 +149,7 @@ tnearneigh <- function(x, t1 = 0, t2) {
 #' * poly: use spdep::poly2nb function.
 #' * eublidean: use spdep::dnearneigh function and x converted sf to data.frame.
 #' @param opt set function options.
-calc_nb <- function(x, fun = c("dist", "knn", "poly", "euclidean"), opt) {
+calc_nb <- function(x, fun = c("dist", "knn", "poly", "poly+dist", "euclidean"), opt) {
   if (fun == "dist") {
     message("call: spdep::dnearneigh")
     # spdep::dnearneigh(x = x, d1 = d1, d2 = d2, ...)
@@ -165,6 +166,40 @@ calc_nb <- function(x, fun = c("dist", "knn", "poly", "euclidean"), opt) {
     message("call: spdep::dnearneigh (longlat = FALSE)")
     #return(do.call(dbscan::frNN, c(list(x = sf::st_coordinates(x)), opt)))
     return(do.call(spdep::dnearneigh, c(list(x = sf::st_coordinates(x)), opt)))
+  } else if (fun == "poly+dist") {
+    message("call: sf::st_distance")
+    spdist <- function(x, d1, d2, ...) {
+      spdiss <- do.call(sf::st_distance, c(list(x = x, ...)))
+      ret <- lapply(seq(1, nrow(spdiss)), function(i) {
+        setdiff(which(units::set_units(d1, "m") <= spdiss[i, ] &
+                        spdiss[i, ] < units::set_units(d2, "m")), i)
+      })
+      class(ret) <- "nb"
+      return(ret)
+    }
+    return(do.call(spdist, c(list(x = x), opt)))
+  }
+}
+
+nbdist <- function(nb, coords = NULL, dist = NULL, ...) {
+  if (all(!is.null(coords), is.null(dist))) {
+    x <- sf::st_geometry(coords)
+    if ("sfc_MULTIPOLYGON" %in% class(x)) {
+      nbclass <- "poly"
+      nb_dist <- sf::st_distance(x, ...)
+      lapply(seq(1, length(nb)), function(i) {
+        nb_dist[i, nb[[i]]]
+      })
+    } else {
+      nbclass <- "point"
+      spdep::nbdists(nb = nb, coords = x, ...)
+    }
+  } else if (all(is.null(coords), !is.null(dist))) {
+    stopifnot(is.matrix(dist))
+    stopifnot(length(nb) == nrow(dist))
+    lapply(seq(1, length(nb)), function(i) {
+      dist[i, nb[[i]]]
+    })
   }
 }
 
@@ -222,7 +257,7 @@ stnb <- function(x = NULL,
   stopifnot(any(class(x) %in% "sfc"))
   stopifnot(!is.null(eps1))
   neighbortype <- match.arg(neighbortype)
-  fun <- match.arg(fun, c("dist", "knn", "poly", "euclidean"))
+  fun <- match.arg(fun, c("dist", "knn", "poly", "poly+dist", "euclidean"))
   
   if (fun == "dist") {
     opt <- list(d1 = eps0,
@@ -234,6 +269,10 @@ stnb <- function(x = NULL,
     opt <- list(...)
   } else if (fun == "euclidean") {
     opt <- list(eps = eps1, ...)
+  } else if (fun == "poly+dist") {
+    opt <- list(d1 = eps0 * 1000,
+                d2 = eps1 * 1000,
+                ...)
   }
   
   timevar <- sort(unique(time))
@@ -291,7 +330,9 @@ stnb <- function(x = NULL,
       sp_nb <- structure(sp_nb, class = "nb")
     }
   }
+  
   if (all(!is.null(time), length(timevar) > 1, neighbortype == "spatial")) {
+    nb_dist <- sf::st_distance(x)
     ln <- length(x)
     msp <- lapply(sp_nb, function(m) {
       ret <- m %% ln
@@ -299,12 +340,14 @@ stnb <- function(x = NULL,
     })
     sp_dist <- do.call(c, lapply(split(msp, rep(timevar, each = length(x))), function(m) {
       class(m) <- "nb"
-      spdep::nbdists(nb = m, coords = x)
+      ##spdep::nbdists(nb = m, coords = x)
+      nbdist(nb = m, dist = nb_dist)
     }))
     names(sp_dist) <- NULL
     # sp_dist <- spdep::nbdists(nb = sp_nb, coords = rep(x, length(timevar)))
   } else {
-    sp_dist <- spdep::nbdists(nb = sp_nb, coords = x)
+    #sp_dist <- spdep::nbdists(nb = sp_nb, coords = x)
+    sp_dist <- nbdist(nb = sp_nb, coords = x)
   }
   return(structure(list(dist = sp_dist,
                         id = sp_nb,
@@ -528,7 +571,7 @@ calc_stdbscan <- function(nb = NULL,
                             cluster,
                             label[node])
       neigh <- sort(unique(node))
-      }
+    }
   }
   close(pb)
   

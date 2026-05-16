@@ -4,7 +4,7 @@
 \docType{package}
 \name{GBstdbscan-package}
 \alias{GBstdbscan-package}
-\title{GBstdbscan: Spatio Temporal Density Based Scanning Clustering.}
+\title{GBstdbscan: Spatio Temporal Density Based Scanning Clustering}
 \description{
 What the package does (one paragraph).
 
